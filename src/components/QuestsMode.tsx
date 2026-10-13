@@ -99,13 +99,16 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
   const currentMatchPct = targetCheck.accuracy;
 
   useEffect(() => {
-    if (targetCheck.passed) {
+    if (targetCheck.passed && !passedMissions[questATargetIndex]) {
       setPassedMissions((prev) => {
+        if (prev[questATargetIndex]) return prev;
         const next = [...prev];
         next[questATargetIndex] = true;
         const passedCount = next.filter(Boolean).length;
         const scoreA = Math.round((passedCount / questATargets.length) * 100);
-        onUpdateScore('a', scoreA);
+        setTimeout(() => {
+          onUpdateScore('a', scoreA);
+        }, 0);
         return next;
       });
     }
@@ -178,12 +181,15 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
 
   // Switch to Quest B: activate Oscilloscope scramble
   useEffect(() => {
-    if (activeQuest === 'b') {
-      onSetScrambled(true);
-    } else {
-      onSetScrambled(false);
-    }
-  }, [activeQuest]);
+    const timer = setTimeout(() => {
+      if (activeQuest === 'b') {
+        onSetScrambled(true);
+      } else {
+        onSetScrambled(false);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeQuest, onSetScrambled]);
 
   const handleQuestBAnswer = (choice: WaveformType) => {
     setBUserChoice(choice);
@@ -193,7 +199,9 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
       setBFeedback(`Correct! ${q.explanation}`);
       const newScore = bScoreCount + 1;
       setBScoreCount(newScore);
-      onUpdateScore('b', Math.round((newScore / mysteryQuestions.length) * 100));
+      setTimeout(() => {
+        onUpdateScore('b', Math.round((newScore / mysteryQuestions.length) * 100));
+      }, 0);
     } else {
       setBFeedback(`Not quite. This was a ${correct.toUpperCase()} wave. ${q.explanation}`);
     }
@@ -253,7 +261,9 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
       if (updated[idx] === q.correct) correctCount++;
     });
     const cScore = Math.round((correctCount / cQuestions.length) * 100);
-    onUpdateScore('c', cScore);
+    setTimeout(() => {
+      onUpdateScore('c', cScore);
+    }, 0);
   };
 
   return (
