@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../audio/audioEngine';
 import { Harmonic, WaveformType } from '../types';
-import { Trophy, HelpCircle, Target, Award, Play, RotateCcw, Check, X, AlertCircle } from 'lucide-react';
+import { Trophy, HelpCircle, Target, Award, Play, Check, AlertCircle } from 'lucide-react';
 
 interface QuestsModeProps {
   harmonics: Harmonic[];
@@ -21,74 +21,82 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
   const [activeQuest, setActiveQuest] = useState<'a' | 'b' | 'c'>('a');
 
   // ========================================================
-  // QUEST A: FOURIER ARCHITECT STATE
+  // QUEST A: FOURIER ARCHITECT STATE (5 Progressive Missions with Strict Thresholds)
   // ========================================================
   const [questATargetIndex, setQuestATargetIndex] = useState<number>(0);
-  const [passedMissions, setPassedMissions] = useState<boolean[]>([false, false, false]);
-  const questASuccess = passedMissions[questATargetIndex];
+  const [passedMissions, setPassedMissions] = useState<boolean[]>([false, false, false, false, false]);
 
   const questATargets = [
     {
-      id: 'square',
-      title: 'Mission 1: Synthesize a Square Wave',
-      targetRecipe: 'square' as WaveformType,
-      hint: 'Remember: Square waves use ODD harmonics only (1f, 3f, 5f, 7f, 9f) dropping off as 1/n (1.0, 0.33, 0.20, 0.14, 0.11). Set even harmonics to 0!',
+      id: 'm1',
+      title: 'Mission 1: Fundamental (1f)',
+      hint: 'Set the 1f Fundamental drawbar to 100% (1.0). Target success threshold: 50% accuracy.',
+      requiredThreshold: 50,
       check: (h: Harmonic[]) => {
-        // Must have h[0] ~ 1.0, h[2] ~ 0.33, h[4] ~ 0.20, and even harmonics < 0.08
-        const odd1 = Math.abs(h[0].amplitude - 1.0) < 0.25;
-        const odd3 = Math.abs(h[2].amplitude - 0.33) < 0.2;
-        const odd5 = Math.abs(h[4].amplitude - 0.2) < 0.18;
-        const evenClean =
-          h[1].amplitude < 0.08 &&
-          h[3].amplitude < 0.08 &&
-          h[5].amplitude < 0.08 &&
-          h[7].amplitude < 0.08 &&
-          h[9].amplitude < 0.08;
-        return { odd1, odd3, odd5, evenClean, passed: odd1 && odd3 && odd5 && evenClean };
+        const diff = Math.abs(h[0].amplitude - 1.0);
+        const accuracy = Math.max(0, Math.round((1 - diff) * 100));
+        return { accuracy, passed: accuracy >= 50 };
       },
     },
     {
-      id: 'sawtooth',
-      title: 'Mission 2: Synthesize a Sawtooth Wave',
-      targetRecipe: 'sawtooth' as WaveformType,
-      hint: 'Remember: Sawtooth waves contain ALL harmonics (both odd AND even), dropping off steadily as 1/n (1.0, 0.50, 0.33, 0.25, 0.20...).',
+      id: 'm2',
+      title: 'Mission 2: 2nd Harmonic (2f)',
+      hint: 'Set 1f to 100% and 2f to 50%. Target success threshold: 70% accuracy.',
+      requiredThreshold: 70,
       check: (h: Harmonic[]) => {
-        const h1 = Math.abs(h[0].amplitude - 1.0) < 0.25;
-        const h2 = Math.abs(h[1].amplitude - 0.5) < 0.2;
-        const h3 = Math.abs(h[2].amplitude - 0.33) < 0.2;
-        const h4 = Math.abs(h[3].amplitude - 0.25) < 0.2;
-        return { h1, h2, h3, h4, passed: h1 && h2 && h3 && h4 };
+        const d1 = Math.abs(h[0].amplitude - 1.0);
+        const d2 = Math.abs(h[1].amplitude - 0.5);
+        const accuracy = Math.max(0, Math.round((1 - (d1 + d2) / 2) * 100));
+        return { accuracy, passed: accuracy >= 70 };
       },
     },
     {
-      id: 'triangle',
-      title: 'Mission 3: Synthesize a Triangle Wave',
-      targetRecipe: 'triangle' as WaveformType,
-      hint: 'Remember: Triangle waves use ODD harmonics only, but they drop off very fast as 1/n² (1.0, 0.11, 0.04...). Set even harmonics to 0!',
+      id: 'm3',
+      title: 'Mission 3: 3rd Harmonic (3f)',
+      hint: 'Set 1f = 100%, 2f = 50%, and 3f = 33%. Target success threshold: 85% accuracy.',
+      requiredThreshold: 85,
       check: (h: Harmonic[]) => {
-        const odd1 = Math.abs(h[0].amplitude - 1.0) < 0.25;
-        const odd3 = Math.abs(h[2].amplitude - 0.11) < 0.15;
-        const evenClean = h[1].amplitude < 0.08 && h[3].amplitude < 0.08 && h[5].amplitude < 0.08;
-        return { odd1, odd3, evenClean, passed: odd1 && odd3 && evenClean };
+        const d1 = Math.abs(h[0].amplitude - 1.0);
+        const d2 = Math.abs(h[1].amplitude - 0.5);
+        const d3 = Math.abs(h[2].amplitude - 0.33);
+        const accuracy = Math.max(0, Math.round((1 - (d1 + d2 + d3) / 3) * 100));
+        return { accuracy, passed: accuracy >= 85 };
+      },
+    },
+    {
+      id: 'm4',
+      title: 'Mission 4: 4th Harmonic (4f)',
+      hint: 'Set harmonics 1 through 4 (1f=1.0, 2f=0.5, 3f=0.33, 4f=0.25). Target success threshold: 95% accuracy.',
+      requiredThreshold: 95,
+      check: (h: Harmonic[]) => {
+        const d1 = Math.abs(h[0].amplitude - 1.0);
+        const d2 = Math.abs(h[1].amplitude - 0.5);
+        const d3 = Math.abs(h[2].amplitude - 0.33);
+        const d4 = Math.abs(h[3].amplitude - 0.25);
+        const accuracy = Math.max(0, Math.round((1 - (d1 + d2 + d3 + d4) / 4) * 100));
+        return { accuracy, passed: accuracy >= 95 };
+      },
+    },
+    {
+      id: 'm5',
+      title: 'Mission 5: 5th Harmonic (5f)',
+      hint: 'Set harmonics 1 through 5 to ideal Sawtooth levels (1.0, 0.5, 0.33, 0.25, 0.20). Target success threshold: 100% accuracy.',
+      requiredThreshold: 100,
+      check: (h: Harmonic[]) => {
+        const d1 = Math.abs(h[0].amplitude - 1.0);
+        const d2 = Math.abs(h[1].amplitude - 0.5);
+        const d3 = Math.abs(h[2].amplitude - 0.33);
+        const d4 = Math.abs(h[3].amplitude - 0.25);
+        const d5 = Math.abs(h[4].amplitude - 0.20);
+        const accuracy = Math.max(0, Math.round((1 - (d1 + d2 + d3 + d4 + d5) / 5) * 100));
+        return { accuracy, passed: accuracy >= 100 };
       },
     },
   ];
 
-  // Calculate Quest A Match Score
   const currentTarget = questATargets[questATargetIndex];
   const targetCheck = currentTarget.check(harmonics);
-
-  const calculateQuestAPercentage = () => {
-    let score = 0;
-    if (targetCheck.passed) return 100;
-    // Partial score calculation based on components
-    if ((targetCheck as any).odd1 || (targetCheck as any).h1) score += 35;
-    if ((targetCheck as any).odd3 || (targetCheck as any).h2) score += 30;
-    if ((targetCheck as any).evenClean || (targetCheck as any).h3) score += 35;
-    return Math.min(95, score);
-  };
-
-  const currentMatchPct = targetCheck.passed ? 100 : calculateQuestAPercentage();
+  const currentMatchPct = targetCheck.accuracy;
 
   useEffect(() => {
     if (targetCheck.passed) {
@@ -200,7 +208,7 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
   };
 
   // ========================================================
-  // QUEST C: HARMONIC MATH & RATIOS STATE (SIMPLIFIED & EASIER)
+  // QUEST C: HARMONIC MATH & RATIOS STATE
   // ========================================================
   const [cQuestions] = useState([
     {
@@ -318,14 +326,14 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
                 <div
                   className="text-lg font-mono font-black"
                   style={{
-                    color: currentMatchPct >= 85 ? '#00ff9d' : currentMatchPct >= 60 ? '#f59e0b' : '#ef4444',
+                    color: currentMatchPct >= currentTarget.requiredThreshold ? '#00ff9d' : currentMatchPct >= 50 ? '#f59e0b' : '#ef4444',
                   }}
                 >
-                  {currentMatchPct}%
+                  {currentMatchPct}% <span className="text-[10px] text-gray-400 font-normal">(Req: {currentTarget.requiredThreshold}%)</span>
                 </div>
               </div>
 
-              {currentMatchPct >= 85 && (
+              {currentMatchPct >= currentTarget.requiredThreshold && (
                 <div className="flex items-center gap-1 text-xs font-black text-black bg-[#00ff9d] px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-[0_0_10px_rgba(0,255,157,0.3)]">
                   <Check className="w-4 h-4 stroke-[3]" /> PASSED!
                 </div>
@@ -407,7 +415,7 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {questATargets.map((t, idx) => {
                 const isPassed = passedMissions[idx] || t.check(harmonics).passed;
                 const isSelected = questATargetIndex === idx;
@@ -418,7 +426,7 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
                     onClick={() => {
                       setQuestATargetIndex(idx);
                     }}
-                    className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 ${
+                    className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
                       isSelected
                         ? 'bg-[#00ff9d]/10 border-[#00ff9d]/50 shadow-[0_0_15px_rgba(0,255,157,0.15)] text-white'
                         : 'bg-black/60 border-white/10 text-gray-400 hover:border-white/30 hover:text-gray-200'
@@ -426,20 +434,20 @@ export const QuestsMode: React.FC<QuestsModeProps> = ({
                   >
                     <div className="flex items-center justify-between w-full">
                       <span className="text-[10px] font-mono font-bold uppercase text-gray-400">
-                        Mission {idx + 1}
+                        M{idx + 1} ({t.requiredThreshold}%)
                       </span>
                       {isPassed ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#00ff9d] text-black flex items-center gap-1">
-                          <Check className="w-3 h-3 stroke-[3]" /> Passed
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#00ff9d] text-black flex items-center gap-0.5">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" /> Passed
                         </span>
                       ) : (
-                        <span className="text-[10px] font-mono text-gray-500 uppercase">
+                        <span className="text-[9px] font-mono text-gray-500 uppercase">
                           {isSelected ? 'Active' : 'Pending'}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs font-bold uppercase tracking-tight text-white">
-                      {t.id.toUpperCase()} WAVE
+                    <div className="text-[11px] font-bold uppercase tracking-tight text-white">
+                      {idx === 0 ? '1f Fundamental' : idx === 1 ? '2nd Harmonic' : idx === 2 ? '3rd Harmonic' : idx === 3 ? '4th Harmonic' : '5th Harmonic'}
                     </div>
                   </button>
                 );

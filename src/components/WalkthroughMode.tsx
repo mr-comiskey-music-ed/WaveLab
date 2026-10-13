@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../audio/audioEngine';
 import { Harmonic, WaveformType } from '../types';
-import { Volume2, Zap, Layers, Disc3, ArrowRight, ArrowLeft, CheckCircle2, Play, VolumeX, Activity } from 'lucide-react';
+import { Volume2, Zap, Layers, Disc3, ArrowRight, ArrowLeft, CheckCircle2, VolumeX, Activity, Sparkles, Sliders } from 'lucide-react';
 
 interface WalkthroughModeProps {
   onUpdateHarmonics: (harmonics: Harmonic[]) => void;
   onUpdateFundamental: (hz: number) => void;
   onStepChange?: (step: number) => void;
   onPhaseChange?: (deg: number) => void;
+  onGoToPlayground?: () => void;
 }
 
 export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
@@ -15,6 +16,7 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
   onUpdateFundamental,
   onStepChange,
   onPhaseChange,
+  onGoToPlayground,
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
@@ -24,20 +26,25 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
 
   // Step 1 State: Amplitude
   const [step1Amp, setStep1Amp] = useState<number>(0.7);
+  const [step1Interacted, setStep1Interacted] = useState<boolean>(false);
 
   // Step 2 State: Frequency
   const [step2Freq, setStep2Freq] = useState<number>(220); // A3
+  const [step2Interacted, setStep2Interacted] = useState<boolean>(false);
 
   // Step 3 State: Harmonic Addition
   const [step3H1, setStep3H1] = useState<number>(1.0);
   const [step3H2, setStep3H2] = useState<number>(0.5);
   const [step3H3, setStep3H3] = useState<number>(0.3);
+  const [step3Interacted, setStep3Interacted] = useState<boolean>(false);
 
   // Step 4 State: Wave Recipes
   const [selectedRecipe, setSelectedRecipe] = useState<WaveformType>('sine');
+  const [step4Interacted, setStep4Interacted] = useState<boolean>(true); // preset active
 
   // Step 5 State: Phase & Cancellation (Degrees 0 to 180)
   const [step5PhaseDeg, setStep5PhaseDeg] = useState<number>(0);
+  const [step5Interacted, setStep5Interacted] = useState<boolean>(false);
 
   useEffect(() => {
     onPhaseChange?.(step5PhaseDeg);
@@ -114,6 +121,24 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
     const next = !isPlaying;
     setIsPlaying(next);
     audioEngine.setDrone(next);
+  };
+
+  // Check if current step's action has been taken
+  const isStepCompleted = () => {
+    switch (currentStep) {
+      case 1:
+        return step1Interacted;
+      case 2:
+        return step2Interacted;
+      case 3:
+        return step3Interacted;
+      case 4:
+        return step4Interacted;
+      case 5:
+        return step5Interacted;
+      default:
+        return true;
+    }
   };
 
   return (
@@ -207,7 +232,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                   max="1.0"
                   step="0.01"
                   value={step1Amp}
-                  onChange={(e) => setStep1Amp(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    setStep1Amp(parseFloat(e.target.value));
+                    setStep1Interacted(true);
+                  }}
                   className="w-full h-2 bg-black rounded-lg appearance-none cursor-pointer accent-[#00ff9d]"
                 />
 
@@ -221,12 +249,14 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
               {/* Editorial takeaway card */}
               <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2 text-xs">
                 <div className="font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#00ff9d]" /> What to observe:
+                  <CheckCircle2 className="w-4 h-4 text-[#00ff9d]" /> Required Action:
                 </div>
                 <p className="text-gray-400 leading-relaxed font-mono">
-                  Watch the green oscilloscope trace in the visualizer above. Notice how increasing
-                  amplitude stretches the wave vertically, but the number of peaks (cycles) remains
-                  identical!
+                  {step1Interacted ? (
+                    <span className="text-[#00ff9d]">✓ Slider adjusted! You may now proceed to Chapter 2.</span>
+                  ) : (
+                    <span className="text-amber-400">⚠️ Please adjust the amplitude slider above to test displacement before continuing.</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -280,7 +310,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                   max="880"
                   step="1"
                   value={step2Freq}
-                  onChange={(e) => setStep2Freq(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    setStep2Freq(parseFloat(e.target.value));
+                    setStep2Interacted(true);
+                  }}
                   className="w-full h-2 bg-black rounded-lg appearance-none cursor-pointer accent-[#00e5ff]"
                 />
 
@@ -294,7 +327,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                     <button
                       key={preset.hz}
                       id={`btn-preset-freq-${preset.hz}`}
-                      onClick={() => setStep2Freq(preset.hz)}
+                      onClick={() => {
+                        setStep2Freq(preset.hz);
+                        setStep2Interacted(true);
+                      }}
                       className={`px-3 py-1 text-xs rounded-full font-bold uppercase tracking-wider border transition-all ${
                         step2Freq === preset.hz
                           ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/50 shadow-[0_0_10px_rgba(0,229,255,0.2)]'
@@ -309,12 +345,14 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
 
               <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2 text-xs">
                 <div className="font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#00e5ff]" /> What to observe:
+                  <CheckCircle2 className="w-4 h-4 text-[#00e5ff]" /> Required Action:
                 </div>
                 <p className="text-gray-400 leading-relaxed font-mono">
-                  Notice how increasing frequency packs more cycles into the same time window.
-                  Because the Sine wave has no overtones, you hear only a pure, hollow, bell-like
-                  fundamental tone.
+                  {step2Interacted ? (
+                    <span className="text-[#00e5ff]">✓ Frequency adjusted! You may now proceed to Chapter 3.</span>
+                  ) : (
+                    <span className="text-amber-400">⚠️ Please adjust the frequency slider or select a preset pitch to continue.</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -355,7 +393,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                   max="1"
                   step="0.05"
                   value={step3H1}
-                  onChange={(e) => setStep3H1(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    setStep3H1(parseFloat(e.target.value));
+                    setStep3Interacted(true);
+                  }}
                   className="w-full h-2 bg-black rounded accent-[#00ff9d]"
                 />
                 <p className="text-[11px] text-gray-400 font-mono">The root musical pitch you recognize.</p>
@@ -374,7 +415,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                   max="1"
                   step="0.05"
                   value={step3H2}
-                  onChange={(e) => setStep3H2(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    setStep3H2(parseFloat(e.target.value));
+                    setStep3Interacted(true);
+                  }}
                   className="w-full h-2 bg-black rounded accent-amber-400"
                 />
                 <p className="text-[11px] text-gray-400 font-mono">Adds an octave overtone, rippling the shape.</p>
@@ -393,11 +437,23 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                   max="1"
                   step="0.05"
                   value={step3H3}
-                  onChange={(e) => setStep3H3(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    setStep3H3(parseFloat(e.target.value));
+                    setStep3Interacted(true);
+                  }}
                   className="w-full h-2 bg-black rounded accent-[#00e5ff]"
                 />
                 <p className="text-[11px] text-gray-400 font-mono">Adds a twelfth interval, steepening the slopes.</p>
               </div>
+            </div>
+
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-xs flex items-center justify-between">
+              <span className="text-gray-400 font-mono">Required Action: Adjust at least one harmonic dial above.</span>
+              {step3Interacted ? (
+                <span className="text-[#00ff9d] font-bold font-mono">✓ Harmonics explored!</span>
+              ) : (
+                <span className="text-amber-400 font-bold font-mono">⚠️ Pending adjustment</span>
+              )}
             </div>
           </div>
         )}
@@ -459,7 +515,10 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
                 <div
                   key={recipe.id}
                   id={`card-recipe-${recipe.id}`}
-                  onClick={() => setSelectedRecipe(recipe.id as WaveformType)}
+                  onClick={() => {
+                    setSelectedRecipe(recipe.id as WaveformType);
+                    setStep4Interacted(true);
+                  }}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     selectedRecipe === recipe.id
                       ? 'bg-black/60 border-[#00ff9d] shadow-[0_0_15px_rgba(0,255,157,0.15)] ring-1 ring-[#00ff9d]'
@@ -499,60 +558,64 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
               </p>
             </div>
 
-            <div className="bg-black/60 p-5 rounded-xl border border-white/5 space-y-4 max-w-xl">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-mono font-bold text-gray-300">WAVE 2 PHASE SHIFT:</span>
-                <span className="font-mono text-[#00ff9d] font-bold text-sm">{step5PhaseDeg}°</span>
-              </div>
-              <input
-                id="input-step5-phase"
-                type="range"
-                min="0"
-                max="180"
-                step="5"
-                value={step5PhaseDeg}
-                onChange={(e) => setStep5PhaseDeg(parseInt(e.target.value))}
-                className="w-full h-2 bg-black rounded accent-[#00ff9d]"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div className="bg-black/60 p-5 rounded-xl border border-white/5 space-y-4">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-mono font-bold text-gray-300">WAVE 2 PHASE SHIFT:</span>
+                  <span className="font-mono text-[#00ff9d] font-bold text-sm">{step5PhaseDeg}°</span>
+                </div>
+                <input
+                  id="input-step5-phase"
+                  type="range"
+                  min="0"
+                  max="180"
+                  step="5"
+                  value={step5PhaseDeg}
+                  onChange={(e) => {
+                    setStep5PhaseDeg(parseInt(e.target.value));
+                    setStep5Interacted(true);
+                  }}
+                  className="w-full h-2 bg-black rounded accent-[#00ff9d]"
+                />
 
-              <div className="grid grid-cols-5 gap-2 pt-2">
-                {[
-                  { deg: 0, label: '0° (In-Phase)' },
-                  { deg: 45, label: '45°' },
-                  { deg: 90, label: '90°' },
-                  { deg: 135, label: '135°' },
-                  { deg: 180, label: '180° (Cancel)' },
-                ].map((preset) => (
-                  <button
-                    key={preset.deg}
-                    id={`btn-phase-preset-${preset.deg}`}
-                    onClick={() => setStep5PhaseDeg(preset.deg)}
-                    className={`py-1.5 px-2 rounded text-[11px] font-mono font-bold uppercase transition-all ${
-                      step5PhaseDeg === preset.deg
-                        ? 'bg-[#00ff9d] text-black shadow-[0_0_10px_rgba(0,255,157,0.3)]'
-                        : 'bg-black/40 text-gray-400 border border-white/5 hover:text-white'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+                <div className="grid grid-cols-5 gap-2 pt-2">
+                  {[
+                    { deg: 0, label: '0° (In-Phase)' },
+                    { deg: 45, label: '45°' },
+                    { deg: 90, label: '90°' },
+                    { deg: 135, label: '135°' },
+                    { deg: 180, label: '180° (Cancel)' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.deg}
+                      id={`btn-phase-preset-${preset.deg}`}
+                      onClick={() => {
+                        setStep5PhaseDeg(preset.deg);
+                        setStep5Interacted(true);
+                      }}
+                      className={`py-1.5 px-2 rounded text-[11px] font-mono font-bold uppercase transition-all ${
+                        step5PhaseDeg === preset.deg
+                          ? 'bg-[#00ff9d] text-black shadow-[0_0_10px_rgba(0,255,157,0.3)]'
+                          : 'bg-black/40 text-gray-400 border border-white/5 hover:text-white'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="p-3 bg-black/40 rounded-lg border border-white/5 text-xs font-mono space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-[#00e5ff]">Wave 1 (Cyan):</span>
-                  <span className="text-white">Fixed (0° Phase)</span>
+              <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-2 text-xs">
+                <div className="font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#00ff9d]" /> Required Action:
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-amber-400">Wave 2 (Amber):</span>
-                  <span className="text-white">Shifted ({step5PhaseDeg}° Phase)</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-white/5 font-bold">
-                  <span className="text-[#00ff9d]">Resultant (Green):</span>
-                  <span className={step5PhaseDeg === 180 ? 'text-red-400' : 'text-[#00ff9d]'}>
-                    {step5PhaseDeg === 180 ? '0 Amplitude (Complete Cancellation!)' : step5PhaseDeg === 0 ? 'Double Amplitude (Constructive)' : 'Partial Sum'}
-                  </span>
-                </div>
+                <p className="text-gray-400 leading-relaxed font-mono">
+                  {step5Interacted ? (
+                    <span className="text-[#00ff9d]">✓ Phase shift tested! You have completed all Learn chapters.</span>
+                  ) : (
+                    <span className="text-amber-400">⚠️ Please adjust the phase shift dial or preset to test wave cancellation.</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -569,18 +632,29 @@ export const WalkthroughMode: React.FC<WalkthroughModeProps> = ({
             <ArrowLeft className="w-4 h-4" /> Previous Chapter
           </button>
 
-          <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">
-            Guided Scrollytelling Mode
+          <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest hidden sm:inline">
+            {isStepCompleted() ? '✓ Chapter Action Completed' : '⚠️ Action Required on Sliders to Continue'}
           </span>
 
-          <button
-            id="btn-walkthrough-next"
-            disabled={currentStep === 5}
-            onClick={() => setCurrentStep((prev) => Math.min(5, prev + 1) as any)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#00ff9d] text-black hover:bg-[#00ff9d]/90 shadow-[0_0_15px_rgba(0,255,157,0.3)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            Next Chapter <ArrowRight className="w-4 h-4" />
-          </button>
+          {currentStep < 5 ? (
+            <button
+              id="btn-walkthrough-next"
+              disabled={!isStepCompleted()}
+              onClick={() => setCurrentStep((prev) => Math.min(5, prev + 1) as any)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#00ff9d] text-black hover:bg-[#00ff9d]/90 shadow-[0_0_15px_rgba(0,255,157,0.3)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              Next Chapter <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              id="btn-walkthrough-playground"
+              disabled={!isStepCompleted()}
+              onClick={() => onGoToPlayground?.()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider bg-[#00e5ff] text-black hover:bg-[#00e5ff]/90 shadow-[0_0_15px_rgba(0,229,255,0.3)] disabled:opacity-30 disabled:cursor-not-allowed transition-all animate-pulse"
+            >
+              <Sliders className="w-4 h-4" /> Go to Playground <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

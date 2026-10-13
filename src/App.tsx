@@ -251,6 +251,7 @@ export default function App() {
             onUpdateFundamental={setFundamentalHz}
             onStepChange={setWalkthroughStep}
             onPhaseChange={setWalkthroughPhaseDeg}
+            onGoToPlayground={() => setActiveMode('fourier')}
           />
         )}
 
@@ -284,44 +285,6 @@ export default function App() {
         />
       )}
 
-      {/* Sleek Interface Footer */}
-      <footer className="flex flex-wrap items-center justify-between bg-[#1a1d26] p-4 rounded-xl border border-white/5 gap-4">
-        <div className="flex flex-wrap items-center space-x-6 sm:space-x-8">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Fundamental (f)</span>
-            <div className="flex items-center space-x-3">
-              <span className="font-mono text-white text-base font-bold">
-                {fundamentalHz < 150 ? 'C3' : fundamentalHz < 180 ? 'E3' : fundamentalHz < 210 ? 'G3' : 'A3'} ({fundamentalHz.toFixed(2)} Hz)
-              </span>
-              <div className="w-16 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
-                <div
-                  className="bg-[#00ff9d] h-full shadow-[0_0_8px_#00ff9d]"
-                  style={{ width: `${Math.min(100, Math.max(15, (fundamentalHz / 300) * 100))}%` }}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Master Channels</span>
-            <div className="flex items-center space-x-3">
-              <span className="font-mono text-white text-base font-bold">
-                10 Harmonics Active
-              </span>
-              <div className="w-24 h-2 bg-black rounded-full p-0.5 border border-white/10">
-                <div className="bg-[#00e5ff] h-full rounded-full w-[75%] shadow-[0_0_10px_rgba(0,229,255,0.4)]"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3 text-xs">
-          <span className="text-gray-500 uppercase text-[10px] tracking-widest font-mono">Engine Status:</span>
-          <span className="text-[#00ff9d] font-mono font-bold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#00ff9d] animate-pulse"></span>
-            WEBAUDIO_ACTIVE
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }
