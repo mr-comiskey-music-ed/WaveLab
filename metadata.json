@@ -1,7 +1,0 @@
-{
-  "name": "Waveforms & Harmonics Lab",
-  "description": "Interactive sound wave, harmonic series, and additive synthesis laboratory for music production students.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
-
