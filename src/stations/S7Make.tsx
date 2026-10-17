@@ -28,7 +28,7 @@ export function S7Make({ info, capstone: c, choices, onChange, onFinish }: Props
   return (
     <div className="station">
       <StationHeader {...info} />
-      <Section title="1. Pick a brief" note="You're the sound designer. Choose one job.">
+      <Section title="1. Pick a brief" note="The Pudding ends with this idea: sound is just displacement over time, and any sound can be built by adding sine waves. Now you're the sound designer. Choose one job.">
         <div className="briefs" role="radiogroup" aria-label="Brief">
           {choices.map((b) => (
             <button key={b} role="radio" aria-checked={c.brief === b} className={`brief${c.brief === b ? ' on' : ''}`} onClick={() => set({ brief: b })}>

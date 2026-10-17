@@ -57,9 +57,31 @@ function makeQuestions(): Q[] {
   });
 }
 
+/** Things to explore: the intervals, plus Pudding's C major chord (three sine waves, 4:5:6). */
+interface Stack {
+  id: string;
+  name: string;
+  notes: number[]; // multiples of the lowest note
+  period: number; // the mix repeats every `period` cycles of the lowest note
+  ratio: string;
+}
+const STACKS: Stack[] = [
+  ...INTERVALS.map((iv) => ({ id: iv.id, name: iv.name, notes: [1, iv.p / iv.q], period: iv.q, ratio: `${iv.p}:${iv.q}` })),
+  { id: 'CM', name: 'C major chord', notes: [1, 5 / 4, 3 / 2], period: 4, ratio: '4:5:6' },
+];
+const CHORD_LOW = 261.63; // C4 for the chord
+
+function playStack(st: Stack) {
+  const base = st.id === 'CM' ? CHORD_LOW : LOW;
+  st.notes.forEach((m) => audio.play({ freq: base * m, harmonics: [1], level: 0.35, duration: 1.6, attack: 0.04 }));
+}
+
 export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
   const [exId, setExId] = useState('P5');
-  const ex = byId(exId);
+  const ex = STACKS.find((s) => s.id === exId)!;
+  const exLow = ex.id === 'CM' ? CHORD_LOW : LOW;
+  const exScale = 1 / ex.notes.length;
+  const exRepeatMs = (ex.period / exLow) * 1000;
   const [qs] = useState(makeQuestions);
   const [picked, setPicked] = useState<Record<number, string>>({});
   const [summary, setSummary] = useState(false);
@@ -83,40 +105,52 @@ export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
   return (
     <div className="station">
       <StationHeader {...info} />
-      <Section title="Stack two notes" note="A chord is additive synthesis too: two sine waves added together. Pick an interval and watch the shape of the mix.">
+      <Section title="Stack notes" note="As The Pudding says, playing a chord is just adding waves together. Pick an interval, or Pudding's C major chord, and watch the shape of the mix.">
         <div className="seg wrap" role="group" aria-label="Interval">
-          {INTERVALS.map((iv) => (
+          {STACKS.map((st) => (
             <button
-              key={iv.id}
-              className={iv.id === exId ? 'on' : ''}
-              aria-pressed={iv.id === exId}
+              key={st.id}
+              className={st.id === exId ? 'on' : ''}
+              aria-pressed={st.id === exId}
               onClick={() => {
-                setExId(iv.id);
+                setExId(st.id);
                 audio.stopAll();
-                playInterval(iv);
+                playStack(st);
               }}
             >
-              {iv.name}
+              {st.name}
             </button>
           ))}
         </div>
         <WavePlot
-          tag="The two notes"
-          traces={[
-            { fn: lowWave, color: 'var(--trace-a)', width: 1.8 },
-            { fn: highWave(ex), color: 'var(--trace-b)', width: 1.8 },
-          ]}
+          tag={ex.notes.length === 3 ? 'The three notes' : 'The two notes'}
+          traces={ex.notes.map((m, i) => ({
+            fn: (t: number) => exScale * 1.6 * Math.sin(2 * Math.PI * exLow * m * t),
+            color: ['var(--trace-a)', 'var(--trace-b)', '#2e9e6b'][i],
+            width: 1.8,
+          }))}
           duration={WINDOW}
           yMax={1.05}
           height={100}
-          label="The lower and upper notes"
+          label="The individual notes"
         />
-        <WavePlot tag="Added together" traces={[{ fn: sumWave(ex), color: 'var(--ink)', width: 2.5 }]} duration={WINDOW} timeAxis yMax={1.05} height={130} label="The two notes added together" />
+        <WavePlot
+          tag="Added together"
+          traces={[{ fn: (t: number) => ex.notes.reduce((sum, m) => sum + exScale * 1.6 * Math.sin(2 * Math.PI * exLow * m * t), 0), color: 'var(--ink)', width: 2.5 }]}
+          duration={WINDOW}
+          timeAxis
+          yMax={1.7}
+          height={130}
+          label="The notes added together"
+        />
         <p className="about">
-          <strong>{ex.name}</strong>: the upper note vibrates {ex.p} times for every {ex.q} of the lower note ({ex.p}:{ex.q}). The mix repeats its pattern every {repeatMs(ex).toFixed(1)} ms
-          {repeatMs(ex) > WINDOW * 1000 ? ', which is longer than this whole graph.' : '.'} Simple ratios repeat quickly and tend to sound smooth; complicated ratios take much longer and sound tense.
+          <strong>{ex.name}</strong>: {ex.notes.length === 3 ? 'three notes whose frequencies are in the ratio' : 'the two notes vibrate in the ratio'} {ex.ratio}. The mix repeats its pattern every {exRepeatMs.toFixed(1)} ms
+          {exRepeatMs > WINDOW * 1000 ? ', which is longer than this whole graph.' : '.'} Simple ratios repeat quickly and tend to sound smooth; complicated ratios take much longer and sound tense.
         </p>
-        <PlayButton onClick={() => playInterval(ex)}>Play {ex.name.toLowerCase()}</PlayButton>
+        <p className="hint">
+          Western music splits the octave into 12 equal steps, so a real piano rounds these ratios very slightly. The idea still holds.
+        </p>
+        <PlayButton onClick={() => playStack(ex)}>Play {ex.name.toLowerCase()}</PlayButton>
       </Section>
 
       {summary ? (

@@ -123,7 +123,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
     let text =
       rd.goal === 'loud'
         ? 'When the peaks of both mics line up, they add together and the drum sounds full.'
-        : 'When one wave peaks while the other dips, they cancel. In a real mix this makes a snare sound thin and weak, because some of its tones cancel.';
+        : 'At 180° one wave peaks while the other dips, so they cancel. Noise-cancelling headphones do this on purpose. In a mix it happens by accident and makes a snare sound thin and weak.';
     if (rd.flipped) {
       text += flip[r.index]
         ? ' The polarity button is exactly how engineers fix this: it flips the wave upside down, fixing every frequency at once.'
@@ -135,11 +135,11 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   return (
     <div className="station">
       <StationHeader {...info} />
-      <Section title="Two mics, one drum" note="A snare is often recorded with one mic on top and one underneath. Both hear the same drum, but not at exactly the same time.">
+      <Section title="Two mics, one drum" note="A snare is often recorded with one mic on top and one underneath. Both hear the same drum, but not at exactly the same time, so their waves are out of phase. As The Pudding puts it, 180° out of phase means one wave is delayed by half a cycle. Try 0°, 90° and 180°, then try the polarity button.">
         <MicPlots shiftDeg={exTotal} />
         <div className="controls">
           <label className="slider">
-            <span>Bottom mic shift: {Math.round(exShift)}°</span>
+            <span>Phase of the bottom mic: {Math.round(exShift)}°</span>
             <input type="range" min={0} max={360} step={1} value={exShift} onChange={(e) => setExShift(+e.target.value)} />
           </label>
           <button className={`btn ${exFlip ? 'on-toggle' : 'secondary'}`} aria-pressed={exFlip} onClick={() => setExFlip(!exFlip)}>

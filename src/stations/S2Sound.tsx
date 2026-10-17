@@ -43,6 +43,7 @@ function SpeakerAir({ wave, amp, playheadRef }: { wave: WaveType; amp: number; p
       playheadRef.current = (cycles % 2) / 2;
       const cone = amp * fn(cycles); // -1..1, + = pushed out
 
+      const blue = getComputedStyle(document.documentElement).getPropertyValue('--trace-a').trim() || '#0380f4';
       // speaker: cabinet, magnet and a cone whose face moves left/right
       ctx.fillStyle = '#17233a';
       ctx.fillRect(0, 18, 22, H - 36);
@@ -55,7 +56,7 @@ function SpeakerAir({ wave, amp, playheadRef }: { wave: WaveType; amp: number; p
       ctx.lineTo(22, H - 52);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#2a55d4';
+      ctx.fillStyle = blue;
       ctx.fillRect(face - 3, 22, 6, H - 44);
 
       // air molecules: each column copies the cone's motion a little later
@@ -69,7 +70,7 @@ function SpeakerAir({ wave, amp, playheadRef }: { wave: WaveType; amp: number; p
         for (let rI = 0; rI < rows; rI++) {
           const x = startX + c * gap + d + (((c * 7 + rI * 3) % 5) - 2) * 0.5;
           const y = 26 + rI * ((H - 52) / (rows - 1)) + (((c + rI) % 3) - 1) * 2.5;
-          ctx.fillStyle = c === 0 ? '#d2366e' : '#7d8aa3';
+          ctx.fillStyle = c === 0 ? blue : '#7d8aa3';
           ctx.beginPath();
           ctx.arc(x, y, 3, 0, Math.PI * 2);
           ctx.fill();
@@ -79,7 +80,7 @@ function SpeakerAir({ wave, amp, playheadRef }: { wave: WaveType; amp: number; p
       ctx.font = '12px "Atkinson Hyperlegible", system-ui, sans-serif';
       ctx.textBaseline = 'top';
       ctx.fillText('speaker', 2, 3);
-      ctx.fillText('air molecules (the pink ones touch the speaker)', startX, 3);
+      ctx.fillText('air molecules (the blue column is the dot on the graph)', startX, 3);
       if (!reduce) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -161,7 +162,7 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
   return (
     <div className="station">
       <StationHeader {...info} />
-      <Section title="Watch it in slow motion" note="The graph is the speaker's position over time. Up on the graph means the cone is pushed out toward you. This is slowed way down: a real 220 Hz note does this 220 times every second.">
+      <Section title="Watch it in slow motion" note="Just like in The Pudding, the graph shows how one air molecule is displaced over time. Compare the blue dot on the graph with the blue column of molecules right next to the speaker. Up on the graph means pushed out, toward you. The molecules only wobble in place: it's the vibration that travels, not the air.">
         <SpeakerAir wave={wave} amp={amp} playheadRef={playheadRef} />
         <WavePlot traces={[{ fn: (t) => amp * exploreFn(t), color: 'var(--trace-a)' }]} duration={2} height={110} playheadRef={playheadRef} label="Speaker position over time" />
         <div className="controls">

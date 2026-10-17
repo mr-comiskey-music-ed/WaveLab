@@ -6,8 +6,10 @@
   --muted: #66728a;
   --grid: #e6ebf3;
   --grid-strong: #cdd6e4;
-  --trace-a: #2a55d4;
-  --trace-b: #d2366e;
+  --trace-a: #0380f4;
+  --trace-b: #e91e63;
+  --accent: #1d5fc4;
+  --accent-dark: #174c9e;
   --good: #1b7f50;
   --good-bg: #e6f5ed;
   --part: #9a6410;
@@ -44,7 +46,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 3px solid var(--trace-a);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -155,7 +157,7 @@ textarea {
 }
 
 .steps button:focus-visible {
-  outline: 3px solid var(--trace-a);
+  outline: 3px solid var(--accent);
 }
 
 .steps .dot {
@@ -179,8 +181,8 @@ textarea {
 }
 
 .steps li.done .dot {
-  background: var(--trace-a);
-  border-color: var(--trace-a);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -271,7 +273,7 @@ textarea {
 .round-title {
   margin: 0;
   font-size: 17px;
-  color: var(--trace-a);
+  color: var(--accent);
 }
 
 .hint,
@@ -506,7 +508,7 @@ textarea {
 
 .slider input {
   width: 100%;
-  accent-color: var(--trace-a);
+  accent-color: var(--accent);
   height: 28px;
 }
 
@@ -583,18 +585,18 @@ textarea {
 }
 
 .btn.primary {
-  background: var(--trace-a);
+  background: var(--accent);
   color: #fff;
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #1f45b5;
+  background: var(--accent-dark);
 }
 
 .btn.secondary {
   background: #fff;
-  color: var(--trace-a);
-  border-color: var(--trace-a);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .btn.secondary:hover:not(:disabled) {
@@ -636,14 +638,14 @@ textarea {
 .link {
   all: unset;
   cursor: pointer;
-  color: var(--trace-a);
+  color: var(--accent);
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .link:focus-visible {
-  outline: 3px solid var(--trace-a);
+  outline: 3px solid var(--accent);
 }
 
 /* ---------- rounds + choices ---------- */
@@ -704,8 +706,8 @@ textarea {
 }
 
 .choice:hover:not(:disabled) {
-  border-color: var(--trace-a);
-  color: var(--trace-a);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .choice:disabled {
@@ -758,7 +760,7 @@ textarea {
 }
 
 .panel.done {
-  border: 2px solid var(--trace-a);
+  border: 2px solid var(--accent);
 }
 
 .done-score {
@@ -769,7 +771,7 @@ textarea {
 .done-score span {
   font-size: 40px;
   font-weight: 700;
-  color: var(--trace-a);
+  color: var(--accent);
   margin-right: 6px;
 }
 
@@ -1062,4 +1064,35 @@ kbd {
 
 .panel > .seg {
   align-self: flex-start;
+}
+
+.choice-plots {
+  display: grid;
+  gap: 8px;
+}
+
+.plot-choice {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  text-align: left;
+}
+
+.plot-choice .plot {
+  pointer-events: none;
+}
+
+.plot-choice-id {
+  text-align: center;
+  font-size: 18px;
+}
+
+.plot-choice.wrong {
+  text-decoration: none;
+}
+
+.bars-axis {
+  font-size: 11px;
 }

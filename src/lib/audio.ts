@@ -93,6 +93,32 @@ class AudioEngine {
     };
   }
 
+  /** White noise: not periodic, so it has no pitch. */
+  playNoise(level = 0.4, duration = 1, delay = 0) {
+    const ctx = this.ensure();
+    const len = Math.floor(ctx.sampleRate * duration);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    const start = ctx.currentTime + 0.02 + delay;
+    const peak = level * 0.25;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(peak, start + 0.02);
+    gain.gain.setValueAtTime(peak, start + duration - 0.1);
+    gain.gain.linearRampToValueAtTime(0, start + duration);
+    src.connect(gain).connect(this.master!);
+    src.start(start);
+    const v = { osc: src as unknown as OscillatorNode, gain };
+    this.voices.add(v);
+    src.onended = () => {
+      gain.disconnect();
+      this.voices.delete(v);
+    };
+  }
+
   /** A held tone whose level can change smoothly while it plays. */
   droneStart(id: string, spec: { freq: number; harmonics: number[]; level: number }) {
     const ctx = this.ensure();

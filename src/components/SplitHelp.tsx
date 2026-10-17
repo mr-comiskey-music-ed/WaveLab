@@ -47,6 +47,9 @@ export function SplitHelp({ onClose }: { onClose: () => void }) {
           If it isn't on the left half yet, click on it and press <span className="keys"><kbd>Alt</kbd> + <kbd>[</kbd></span>
         </li>
         <li>
+          In The Pudding, press <kbd>M</kbd> to turn its sound on (it starts muted). The number keys <kbd>1</kbd>–<kbd>9</kbd> set the volume.
+        </li>
+        <li>
           Click back on this WaveLab window and press <span className="keys"><kbd>Alt</kbd> + <kbd>]</kbd></span> to snap it to the right half.
         </li>
       </ol>

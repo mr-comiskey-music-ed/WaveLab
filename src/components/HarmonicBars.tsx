@@ -1,5 +1,18 @@
 /** Display-only bar chart of harmonic levels (a simple spectrum). */
-export function HarmonicBars({ amps, count = 12, color = 'var(--trace-a)', label }: { amps: number[]; count?: number; color?: string; label: string }) {
+export function HarmonicBars({
+  amps,
+  count = 12,
+  color = 'var(--trace-a)',
+  label,
+  rootHz,
+}: {
+  amps: number[];
+  count?: number;
+  color?: string;
+  label: string;
+  /** Label bars in Hz (like The Pudding's charts) instead of harmonic numbers. */
+  rootHz?: number;
+}) {
   const vals = Array.from({ length: count }, (_, i) => Math.abs(amps[i] ?? 0));
   const max = Math.max(...vals, 1e-9);
   const W = 100 / count;
@@ -14,10 +27,10 @@ export function HarmonicBars({ amps, count = 12, color = 'var(--trace-a)', label
       </svg>
       <div className="bars-axis" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
         {vals.map((_, i) => (
-          <span key={i}>{i + 1}</span>
+          <span key={i}>{rootHz ? `${(i + 1) * rootHz}Hz` : i + 1}</span>
         ))}
       </div>
-      <figcaption>Harmonic number</figcaption>
+      <figcaption>{rootHz ? 'Frequency' : 'Harmonic number'}</figcaption>
     </figure>
   );
 }

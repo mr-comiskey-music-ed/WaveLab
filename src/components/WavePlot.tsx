@@ -16,6 +16,8 @@ interface Props {
   height?: number;
   /** Show millisecond labels along the bottom. */
   timeAxis?: boolean;
+  /** Show displacement numbers (−1 … 1) up the left side. */
+  yLabels?: boolean;
   markers?: { t: number; color: string }[];
   /** If given, a vertical line follows ref.current (0..1 across) every frame. */
   playheadRef?: React.MutableRefObject<number | null>;
@@ -44,10 +46,10 @@ function niceStep(ms: number) {
   return steps.find((s) => s >= target) ?? 1000;
 }
 
-export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis, markers, playheadRef, label, tag }: Props) {
+export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis, yLabels, markers, playheadRef, label, tag }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const propsRef = useRef({ traces, duration, yMax, timeAxis, markers });
-  propsRef.current = { traces, duration, yMax, timeAxis, markers };
+  const propsRef = useRef({ traces, duration, yMax, timeAxis, yLabels, markers });
+  propsRef.current = { traces, duration, yMax, timeAxis, yLabels, markers };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -56,7 +58,7 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
     let w = 0;
 
     const draw = () => {
-      const { traces, duration, yMax, timeAxis, markers } = propsRef.current;
+      const { traces, duration, yMax, timeAxis, yLabels, markers } = propsRef.current;
       const dpr = window.devicePixelRatio || 1;
       const cssW = canvas.clientWidth;
       if (cssW !== w || canvas.height !== Math.round(height * dpr)) {
@@ -98,8 +100,9 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
       ctx.stroke();
 
       if (timeAxis) {
-        const ms = duration * 1000;
-        const step = niceStep(ms);
+        const inSeconds = duration >= 0.5;
+        const ms = inSeconds ? duration : duration * 1000;
+        const step = inSeconds ? (duration > 2 ? 0.5 : 0.25) : niceStep(ms);
         ctx.fillStyle = C.text;
         ctx.font = '12px "Atkinson Hyperlegible", system-ui, sans-serif';
         ctx.textBaseline = 'top';
@@ -110,7 +113,7 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
           ctx.moveTo(Math.round(x) + 0.5, plotH);
           ctx.lineTo(Math.round(x) + 0.5, plotH + 5);
           ctx.stroke();
-          const text = `${Number(v.toFixed(2))} ms`;
+          const text = `${Number(v.toFixed(2))} ${inSeconds ? 's' : 'ms'}`;
           const tw = ctx.measureText(text).width;
           ctx.fillText(text, Math.min(Math.max(0, x - tw / 2), cssW - tw), plotH + 7);
         }
@@ -133,6 +136,21 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
         ctx.stroke();
       }
       ctx.setLineDash([]);
+
+      if (yLabels) {
+        ctx.font = '12px "Atkinson Hyperlegible", system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        for (const v of [1, 0.5, 0, -0.5, -1]) {
+          const y = mid - v * scaleY;
+          const text = v === 0 ? '0' : v.toString();
+          const tw = ctx.measureText(text).width;
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.fillRect(2, y - 8, tw + 8, 16);
+          ctx.textAlign = 'left';
+          ctx.fillStyle = C.text;
+          ctx.fillText(text, 6, y);
+        }
+      }
 
       for (const m of markers ?? []) {
         const x = (m.t / duration) * cssW;
@@ -159,15 +177,15 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
       if (ph != null) {
         const x = ph * cssW;
         ctx.strokeStyle = '#17233a';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, plotH);
         ctx.stroke();
         const y = mid - (traces[0]?.fn(ph * duration) ?? 0) * scaleY;
-        ctx.fillStyle = '#17233a';
+        ctx.fillStyle = resolveColor(traces[0]?.color ?? '#17233a');
         ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
         ctx.fill();
       }
     };
@@ -185,7 +203,7 @@ export function WavePlot({ traces, duration, yMax = 1.15, height = 170, timeAxis
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [traces, duration, yMax, height, timeAxis, markers, playheadRef]);
+  }, [traces, duration, yMax, height, timeAxis, yLabels, markers, playheadRef]);
 
   return (
     <figure className="plot">

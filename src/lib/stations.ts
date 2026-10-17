@@ -18,7 +18,7 @@ export const STATIONS: StationInfo[] = [
     id: 'read',
     short: 'Reading',
     title: 'Reading waveforms',
-    pudding: '1. Reading Waveforms (time, displacement, amplitude, frequency)',
+    pudding: '1. Reading Waveforms (Time, Displacement, Amplitude, Frequency)',
     goal: 'Read loudness and pitch straight off a graph, before you hear it.',
     auto: true,
   },
@@ -34,8 +34,8 @@ export const STATIONS: StationInfo[] = [
     id: 'harm',
     short: 'Harmonics',
     title: 'Harmonics',
-    pudding: '3. Harmonics (triangle, square and sawtooth)',
-    goal: 'Name the four basic waves by ear, and by their harmonic recipe.',
+    pudding: '3. Harmonics (The Triangle, Square and Sawtooth Waveforms)',
+    goal: 'Name the four basic waveforms by ear and by their harmonics, and work out harmonic frequencies.',
     auto: true,
   },
   {
@@ -43,7 +43,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Additive',
     title: 'Additive synthesis',
     pudding: '4. Additive Synthesis',
-    goal: 'Rebuild a sound from sine waves, using your ears.',
+    goal: 'Add waves point by point, then rebuild a sound from sine waves by ear.',
     auto: true,
   },
   {
@@ -59,7 +59,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Chords',
     title: 'Chords',
     pudding: '4. Additive Synthesis → Chords',
-    goal: 'See why some intervals blend smoothly and others clash.',
+    goal: 'See a chord as waves added together, and why some combinations blend smoothly.',
     auto: true,
   },
   {
