@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { audio } from '../lib/audio';
 import { pick, rand, randInt, shuffle } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
-import { Choices, Feedback, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { useSaved } from '../lib/persist';
+import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
 
 /*
@@ -15,7 +17,7 @@ type Q =
   | { kind: 'amp'; tone: Tone; options: number[] }
   | { kind: 'louder' | 'higher'; a: Tone; b: Tone; answer: 'a' | 'b' }
   | { kind: 'hz'; tone: Tone; options: number[] }
-  | { kind: 'hz10ms'; cycles: number; amp: number; options: number[] }
+  | { kind: 'hz1ms'; cycles: number; amp: number; options: number[] }
   | { kind: 'pitch'; amp: number; hz: number; answer: 'a' | 'b'; seed: number };
 
 const SPEED_UP = 100; // what you hear is ~100× faster than the graph (like The Pudding)
@@ -50,11 +52,11 @@ function makeHz(): Q {
   return { kind: 'hz', tone: { amp: rand(0.6, 1), hz }, options: shuffle([hz, ...wrong]) };
 }
 
-function makeHz10ms(): Q {
-  const cycles = randInt(2, 6);
-  const right = cycles * 100;
-  const wrong = shuffle([cycles, cycles * 10, (cycles + 1) * 100, cycles * 1000]).slice(0, 3);
-  return { kind: 'hz10ms', cycles, amp: rand(0.6, 1), options: shuffle([right, ...wrong]) };
+function makeHz1ms(): Q {
+  const cycles = randInt(1, 4);
+  const right = cycles * 1000;
+  const wrong = shuffle([cycles, cycles * 100, (cycles + 1) * 1000, cycles * 10]).slice(0, 3);
+  return { kind: 'hz1ms', cycles, amp: rand(0.6, 1), options: shuffle([right, ...wrong]) };
 }
 
 function makePitch(): Q {
@@ -62,7 +64,7 @@ function makePitch(): Q {
 }
 
 function makeQuestions(): Q[] {
-  return [makeAmp(), makeCompare('louder'), makeHz(), makeCompare('higher'), makePitch(), makeHz10ms()];
+  return [makeAmp(), makeCompare('louder'), makeHz(), makeCompare('higher'), makePitch(), makeHz1ms()];
 }
 
 const sine = (t: Tone) => (x: number) => t.amp * Math.sin(2 * Math.PI * t.hz * x);
@@ -89,14 +91,14 @@ const LABEL: Record<Q['kind'], string> = {
   hz: 'Find the frequency',
   higher: 'Which is higher',
   pitch: 'Periodic or not',
-  hz10ms: 'Frequency of a real sound',
+  hz1ms: 'Frequency of a real sound',
 };
 
 export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
-  const [qs] = useState(makeQuestions);
-  const [picked, setPicked] = useState<Record<number, string>>({});
-  const [summary, setSummary] = useState(false);
-  const r = useRounds(qs.length, done, onComplete);
+  const [qs] = useSaved('read:qs', makeQuestions);
+  const [picked, setPicked] = useSaved<Record<number, string>>('read:picked', {});
+  const [summary, setSummary] = useSaved('read:summary', false);
+  const r = useRounds('read', qs.length, done, onComplete);
   const q = qs[r.index];
   const choice = picked[r.index] ?? null;
   const noise = useMemo(() => (q.kind === 'pitch' ? noiseFn(q.seed) : null), [q]);
@@ -111,7 +113,7 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
     audio.stopAll();
     if (q.kind === 'amp' || q.kind === 'hz') playTone(q.tone, 0, 1.2);
     else if (q.kind === 'louder' || q.kind === 'higher') playPair(q.a, q.b);
-    else if (q.kind === 'hz10ms') audio.play({ freq: q.cycles * 100, harmonics: [1], level: q.amp, normalize: 'none', duration: 1.2 });
+    else if (q.kind === 'hz1ms') audio.play({ freq: q.cycles * 1000, harmonics: [1], level: q.amp, normalize: 'none', duration: 1.2 });
     else if (q.kind === 'pitch') {
       const tone = { amp: 0.8, hz: q.hz };
       if (q.answer === 'a') {
@@ -127,13 +129,13 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
   const correct =
     q.kind === 'amp' || q.kind === 'hz'
       ? String(q.kind === 'amp' ? q.tone.amp : q.tone.hz)
-      : q.kind === 'hz10ms'
-      ? String(q.cycles * 100)
+      : q.kind === 'hz1ms'
+      ? String(q.cycles * 1000)
       : q.answer;
 
   const choose = (id: string) => {
     setPicked({ ...picked, [r.index]: id });
-    r.answer(id === correct ? 100 : 0);
+    r.answer(mcScore(id === correct));
     hear();
   };
 
@@ -145,26 +147,26 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
 
   return (
     <div className="station">
-      <StationHeader {...info} />
+      <StationHeader info={info} />
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} onNext={onNext} />
+        <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />
       ) : (
         <Section
           title="Predict, then hear"
-          note="Like The Pudding, these graphs show 1 second and amplitude runs from 0 to 1. Decide before you listen: one try per round, and the sound plays after you answer (sped up about 100 times so you can hear it)."
+          note="Like the Waveforms site, these graphs show 1 second and amplitude runs from 0 to 1. Decide before you listen: one try per round, and the sound plays after you answer (sped up about 100 times so you can hear it)."
         >
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
 
           {q.kind === 'amp' && (
             <>
               <p className="question">What is the amplitude of this wave?</p>
-              <WavePlot traces={[{ fn: sine(q.tone), color: 'var(--trace-a)' }]} duration={1} yMax={1.1} yLabels timeAxis height={170} label="A sine wave with displacement labels" />
+              <WavePlot traces={[{ fn: sine(q.tone), color: 'var(--trace-a)' }]} duration={1} yMax={1.1} yLabels timeAxis height={230} label="A sine wave with displacement labels" />
               <Choices options={q.options.map((o) => ({ id: String(o), label: String(o) }))} correct={correct} picked={choice} onPick={choose} columns={4} />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={ok}>
                   Amplitude is how far the wave moves away from 0, its resting position. This wave peaks at {q.tone.amp} and dips to −{q.tone.amp}, so its amplitude is {q.tone.amp}.
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
@@ -176,13 +178,13 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
                 <WavePlot tag="B" traces={[{ fn: sine(q.b), color: 'var(--trace-b)' }]} duration={1} yMax={1.1} height={120} label="Wave B" />
               </div>
               <Choices options={AB} correct={q.answer} picked={choice} onPick={choose} />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={ok}>
                   {q.kind === 'louder'
                     ? `Loudness comes from amplitude: how far the air molecules are displaced. ${q.answer.toUpperCase()} is taller. How many times the wave repeats has nothing to do with loudness.`
                     : `Pitch comes from frequency: how many times the wave repeats in the same amount of time. ${q.answer.toUpperCase()} repeats more often. How tall the wave is has nothing to do with pitch.`}
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
@@ -191,11 +193,11 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
               <p className="question">This graph shows 1 second. What is the frequency of this wave?</p>
               <WavePlot traces={[{ fn: sine(q.tone), color: 'var(--trace-a)' }]} duration={1} yMax={1.1} timeAxis height={150} label="A sine wave over 1 second" />
               <Choices options={q.options.map((o) => ({ id: String(o), label: `${o} Hz` }))} correct={correct} picked={choice} onPick={choose} columns={4} />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={ok}>
                   Hertz means repetitions per second. The wave repeats {q.tone.hz} times in this 1-second graph, so it's {q.tone.hz} Hz. That's far too slow to hear; you just heard it about {SPEED_UP} times faster.
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
@@ -207,32 +209,34 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
                 <WavePlot tag="B" traces={[{ fn: q.answer === 'b' ? sine({ amp: q.amp, hz: q.hz }) : noise, color: 'var(--trace-b)' }]} duration={1} yMax={1.1} height={110} label="Wave B" />
               </div>
               <Choices options={AB} correct={q.answer} picked={choice} onPick={choose} />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={ok}>
                   {q.answer.toUpperCase()} is periodic: the same shape repeats over and over, so you hear a steady pitch. The other one never repeats. That's white noise, like static or waves crashing on a beach, and it has no pitch.
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
-          {q.kind === 'hz10ms' && (
+          {q.kind === 'hz1ms' && (
             <>
-              <p className="question">Now a real, audible sound. This graph shows only 10 milliseconds (1/100 of a second). What is the frequency?</p>
-              <WavePlot traces={[{ fn: (x) => q.amp * Math.sin(2 * Math.PI * q.cycles * 100 * x), color: 'var(--trace-a)' }]} duration={0.01} yMax={1.1} timeAxis height={150} label="A sine wave over 10 milliseconds" />
-              <p className="hint">Count the repeats, then ask how many would fit in a whole second.</p>
+              <p className="question">Now a real, audible sound. This graph shows only 1 millisecond (1/1000 of a second). What is the frequency?</p>
+              <WavePlot traces={[{ fn: (x) => q.amp * Math.sin(2 * Math.PI * q.cycles * 1000 * x), color: 'var(--trace-a)' }]} duration={0.001} yMax={1.1} timeAxis height={150} label="A sine wave over 1 millisecond" />
+              <p className="hint">Count the repeats. A whole second is 1,000 times longer than this graph.</p>
               <Choices options={q.options.map((o) => ({ id: String(o), label: `${o.toLocaleString()} Hz` }))} correct={correct} picked={choice} onPick={choose} columns={4} />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={ok}>
-                  It repeats {q.cycles} times in 10 ms. A second is 100 times longer, so that's {q.cycles} × 100 = {q.cycles * 100} Hz. For comparison, the A in the middle of a piano (A4) is 440 Hz.
+                  It repeats {q.cycles} {q.cycles === 1 ? 'time' : 'times'} in 1 millisecond. A second is 1,000 times longer, so that's {q.cycles} × 1,000 = {(q.cycles * 1000).toLocaleString()} Hz. For comparison, the A in the middle of a piano (A4) is 440 Hz.
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
-          {choice && (
-            <PlayButton onClick={hear}>{q.kind === 'louder' || q.kind === 'higher' || q.kind === 'pitch' ? 'Hear A, then B again' : 'Hear it again'}</PlayButton>
-          )}
-          {r.answered && <NextButton isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />}
+          <div className="btn-row">
+            <PlayButton disabled={!choice} onClick={hear}>
+              {q.kind === 'louder' || q.kind === 'higher' || q.kind === 'pitch' ? 'Hear A, then B again' : 'Hear it again'}
+            </PlayButton>
+          </div>
+          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

@@ -23,11 +23,51 @@ export interface ToneSpec {
 
 type Voice = { osc: OscillatorNode; gain: GainNode };
 
+/**
+ * Ears are far more sensitive to high pitches, so higher (and brighter) sounds are
+ * turned down. `freq` is the note; `harmonics` makes bright sounds count as higher.
+ */
+export function loudnessComp(freq: number, harmonics: number[] = [1]) {
+  let num = 0;
+  let den = 0;
+  harmonics.forEach((a, i) => {
+    num += (i + 1) * a * a;
+    den += a * a;
+  });
+  const centroid = den > 0 ? num / den : 1;
+  const effective = freq * Math.sqrt(centroid);
+  return effective <= 250 ? 1 : Math.pow(250 / effective, 0.6);
+}
+
+const VOLUME_KEY = 'wavelab-volume';
+
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private voices = new Set<Voice>();
   private drones = new Map<string, Voice>();
+  private userVolume = (() => {
+    try {
+      const v = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '');
+      return Number.isFinite(v) ? v : 0.6;
+    } catch {
+      return 0.6;
+    }
+  })();
+
+  get volume() {
+    return this.userVolume;
+  }
+
+  setVolume(v: number) {
+    this.userVolume = Math.max(0, Math.min(1, v));
+    if (this.master && this.ctx) this.master.gain.setTargetAtTime(this.userVolume * 0.7, this.ctx.currentTime, 0.02);
+    try {
+      localStorage.setItem(VOLUME_KEY, String(this.userVolume));
+    } catch {
+      /* fine */
+    }
+  }
 
   private ensure(): AudioContext {
     if (!this.ctx) {
@@ -37,7 +77,7 @@ class AudioEngine {
       comp.threshold.value = -6;
       comp.ratio.value = 8;
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.8;
+      this.master.gain.value = this.userVolume * 0.7;
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
     }
@@ -77,7 +117,7 @@ class AudioEngine {
     osc.setPeriodicWave(this.wave(ctx, spec.harmonics, spec.phases));
     osc.frequency.value = spec.freq;
     const gain = ctx.createGain();
-    const peak = Math.max(0.0001, level * scale * 0.5);
+    const peak = Math.max(0.0001, level * scale * 0.5 * loudnessComp(spec.freq, spec.harmonics));
     gain.gain.setValueAtTime(0, start);
     gain.gain.linearRampToValueAtTime(peak, start + attack);
     gain.gain.setValueAtTime(peak, start + Math.max(attack, dur - release));
@@ -128,16 +168,20 @@ class AudioEngine {
     osc.frequency.value = spec.freq;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(spec.level * 0.5, ctx.currentTime + 0.05);
+    const comp = loudnessComp(spec.freq, spec.harmonics);
+    gain.gain.linearRampToValueAtTime(spec.level * 0.5 * comp, ctx.currentTime + 0.05);
     osc.connect(gain).connect(this.master!);
     osc.start();
     this.drones.set(id, { osc, gain });
+    this.droneComp.set(id, comp);
   }
+
+  private droneComp = new Map<string, number>();
 
   droneLevel(id: string, level: number) {
     const v = this.drones.get(id);
     if (!v || !this.ctx) return;
-    v.gain.gain.setTargetAtTime(Math.max(0, level) * 0.5, this.ctx.currentTime, 0.03);
+    v.gain.gain.setTargetAtTime(Math.max(0, level) * 0.5 * (this.droneComp.get(id) ?? 1), this.ctx.currentTime, 0.03);
   }
 
   droneStop(id: string) {

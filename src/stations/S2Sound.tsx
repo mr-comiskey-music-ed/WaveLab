@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { harmonicValue, peakOf, pick, rand, recipe, shuffle, WaveType, WAVE_NAMES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
-import { Choices, Feedback, NextButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, NextButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { useSaved } from '../lib/persist';
+import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
 
 const shapeFn = (type: WaveType) => {
@@ -92,7 +94,63 @@ function SpeakerAir({ wave, amp, playheadRef }: { wave: WaveType; amp: number; p
 
 // ---------- Check questions ----------
 type Want = 'out' | 'rest' | 'in';
-type Q = { kind: 'cone' | 'air'; wave: WaveType; x: number; want: Want };
+type Q =
+  | { kind: 'cone'; wave: WaveType; x: number; want: Want }
+  | { kind: 'idea'; idea: number; order: number[] };
+
+/** Big-idea questions about how sound travels (from Part 2 of the Waveforms site). */
+const IDEAS: { q: string; options: string[]; why: string }[] = [
+  {
+    q: 'Does a single air molecule travel all the way from the speaker to your ear?',
+    options: [
+      'No. Each molecule just wobbles back and forth in place and passes the vibration to its neighbours.',
+      'Yes. The speaker shoots molecules across the room into your ear.',
+      'Only when the sound is loud enough.',
+      'Only for high-pitched sounds.',
+    ],
+    why: 'Molecules only wobble around their resting spot. The vibration is what travels, like a chain reaction or a stadium wave.',
+  },
+  {
+    q: 'When you turn up the amplitude, what changes for the air molecules?',
+    options: [
+      'They get pushed farther from their resting spot.',
+      'They wobble back and forth more times per second.',
+      'They travel across the room faster.',
+      'More air molecules get created.',
+    ],
+    why: 'Amplitude is displacement: how far each molecule is pushed. Bigger displacement sounds louder.',
+  },
+  {
+    q: 'When you raise the frequency, what changes for the air molecules?',
+    options: [
+      'They wobble back and forth more times per second.',
+      'They get pushed farther from their resting spot.',
+      'They fly to your ear sooner.',
+      'Nothing changes for the air, only the speaker.',
+    ],
+    why: 'Frequency is how many times per second the wobble repeats. More repeats per second sounds higher.',
+  },
+  {
+    q: 'What starts the chain reaction that becomes sound?',
+    options: [
+      'Something vibrating, like a guitar string or a speaker cone.',
+      'Air molecules escaping from the speaker.',
+      'Electricity moving through the air.',
+      'Your ear pulling the sound toward it.',
+    ],
+    why: 'Sound always starts with something vibrating. That vibration bumps the air next to it, which bumps the next air, and so on.',
+  },
+  {
+    q: 'The waveform graph you keep seeing shows...',
+    options: [
+      'How far one air molecule is displaced, over time.',
+      'The path one molecule takes across the room.',
+      'The shape of the speaker.',
+      'How loud the room is at different spots.',
+    ],
+    why: 'A waveform graphs one molecule’s displacement (up and down on the graph) against time (left to right).',
+  },
+];
 
 function findPoint(wave: WaveType, want: Want): number {
   const fn = shapeFn(wave);
@@ -108,15 +166,11 @@ function findPoint(wave: WaveType, want: Want): number {
 
 function makeQuestions(): Q[] {
   const waves: WaveType[] = ['sine', 'triangle', 'sawtooth', 'square'];
-  const restWave = pick(['sine', 'triangle', 'sawtooth'] as WaveType[]);
-  const list: Omit<Q, 'x'>[] = [
-    { kind: 'cone', wave: pick(waves), want: pick(['out', 'in'] as Want[]) },
-    { kind: 'cone', wave: restWave, want: 'rest' },
-    { kind: 'air', wave: pick(waves), want: 'out' },
-    { kind: 'air', wave: pick(waves), want: 'in' },
-    { kind: 'cone', wave: pick(waves), want: pick(['out', 'in'] as Want[]) },
-  ];
-  return shuffle(list).map((q) => ({ ...q, x: findPoint(q.wave, q.want) }));
+  const cone = (wave: WaveType, want: Want): Q => ({ kind: 'cone', wave, want, x: findPoint(wave, want) });
+  const out = pick(['out', 'in'] as Want[]);
+  const cones = [cone(pick(waves), out), cone(pick(['sine', 'triangle', 'sawtooth'] as WaveType[]), 'rest'), cone(pick(waves), out === 'out' ? 'in' : 'out')];
+  const ideas = [0, ...shuffle([1, 2, 3, 4]).slice(0, 2)].map((idea): Q => ({ kind: 'idea', idea, order: shuffle([0, 1, 2, 3]) }));
+  return [cones[0], ideas[0], cones[1], ideas[1], cones[2], ideas[2]];
 }
 
 const CONE_OPTIONS = [
@@ -124,10 +178,17 @@ const CONE_OPTIONS = [
   { id: 'rest', label: 'In the middle (at rest)' },
   { id: 'in', label: 'Pulled in, away from you' },
 ];
-const AIR_OPTIONS = [
-  { id: 'out', label: 'Squeezed together' },
-  { id: 'in', label: 'Spread apart' },
-];
+
+/** The cone labels that sit above and below a speaker graph. */
+function ConeGraph({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="cone-graph">
+      <span className="cone-label">▲ Speaker cone pushed out (toward you)</span>
+      {children}
+      <span className="cone-label">▼ Speaker cone pulled in (away from you)</span>
+    </div>
+  );
+}
 
 export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
   const [wave, setWave] = useState<WaveType>('sine');
@@ -135,17 +196,18 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
   const playheadRef = useRef<number | null>(0);
   const exploreFn = useMemo(() => shapeFn(wave), [wave]);
 
-  const [qs] = useState(makeQuestions);
-  const [picked, setPicked] = useState<Record<number, string>>({});
-  const [summary, setSummary] = useState(false);
-  const r = useRounds(qs.length, done, onComplete);
+  const [qs] = useSaved('sound:qs', makeQuestions);
+  const [picked, setPicked] = useSaved<Record<number, string>>('sound:picked', {});
+  const [summary, setSummary] = useSaved('sound:summary', false);
+  const r = useRounds('sound', qs.length, done, onComplete);
   const q = qs[r.index];
-  const qFn = useMemo(() => shapeFn(q.wave), [q.wave]);
+  const qFn = useMemo(() => (q.kind === 'cone' ? shapeFn(q.wave) : null), [q]);
   const choice = picked[r.index] ?? null;
+  const correct = q.kind === 'cone' ? q.want : '0';
 
   const choose = (id: string) => {
     setPicked({ ...picked, [r.index]: id });
-    r.answer(id === q.want ? 100 : 0);
+    r.answer(mcScore(id === correct));
   };
 
   const explain =
@@ -155,16 +217,19 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
         : q.want === 'in'
         ? 'The dot is below the middle line, so the cone is pulled back in.'
         : 'The dot is right on the middle line, so the cone is passing through its resting spot.'
-      : q.want === 'out'
-      ? 'The cone is pushed out here, so it crowds the air right in front of it: the molecules get squeezed together (a compression).'
-      : 'The cone is pulled back here, so it leaves extra room: the air right in front spreads apart (a rarefaction).';
+      : IDEAS[q.idea].why;
 
   return (
     <div className="station">
-      <StationHeader {...info} />
-      <Section title="Watch it in slow motion" note="Just like in The Pudding, the graph shows how one air molecule is displaced over time. Compare the blue dot on the graph with the blue column of molecules right next to the speaker. Up on the graph means pushed out, toward you. The molecules only wobble in place: it's the vibration that travels, not the air.">
+      <StationHeader info={info} />
+      <Section
+        title="Watch it in slow motion"
+        note="Like on the Waveforms site, the graph shows how one air molecule is displaced over time. Compare the blue dot on the graph with the blue column of molecules right next to the speaker. The molecules only wobble in place: it's the vibration that travels, not the air."
+      >
         <SpeakerAir wave={wave} amp={amp} playheadRef={playheadRef} />
-        <WavePlot traces={[{ fn: (t) => amp * exploreFn(t), color: 'var(--trace-a)' }]} duration={2} height={110} playheadRef={playheadRef} label="Speaker position over time" />
+        <ConeGraph>
+          <WavePlot traces={[{ fn: (t) => amp * exploreFn(t), color: 'var(--trace-a)' }]} duration={2} height={110} playheadRef={playheadRef} label="Speaker position over time" />
+        </ConeGraph>
         <div className="controls">
           <div className="seg" role="group" aria-label="Wave shape">
             {(['sine', 'triangle', 'square', 'sawtooth'] as WaveType[]).map((w) => (
@@ -181,17 +246,31 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
       </Section>
 
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map((x) => (x.kind === 'cone' ? 'Where is the cone?' : 'What is the air doing?'))} onNext={onNext} />
+        <StationDone
+          scores={r.scores}
+          labels={qs.map((x) => (x.kind === 'cone' ? 'Where is the cone?' : IDEAS[x.idea].q))}
+          kinds={qs.map(() => 'mc' as const)}
+          onNext={onNext}
+        />
       ) : (
-        <Section title="Check yourself" note="The dot marks one moment in time. One try per round.">
+        <Section title="Check yourself" note="One try per round.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
-          <p className="question">
-            {q.kind === 'cone' ? 'At the moment marked by the dot, where is the speaker cone?' : 'At the moment marked by the dot, what is the air right in front of the speaker doing?'}
-          </p>
-          <WavePlot traces={[{ fn: (t) => 0.9 * qFn(t), color: 'var(--trace-a)' }]} duration={2} height={130} markers={[{ t: q.x, color: 'var(--trace-b)' }]} label="Speaker position over time, with one moment marked" />
-          <Choices options={q.kind === 'cone' ? CONE_OPTIONS : AIR_OPTIONS} correct={q.want} picked={choice} onPick={choose} columns={q.kind === 'cone' ? 3 : 2} />
-          {choice && <Feedback ok={choice === q.want}>{explain}</Feedback>}
-          {r.answered && <NextButton isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />}
+          {q.kind === 'cone' && qFn ? (
+            <>
+              <p className="question">At the moment marked by the dot, where is the speaker cone?</p>
+              <ConeGraph>
+                <WavePlot traces={[{ fn: (t) => 0.9 * qFn(t), color: 'var(--trace-a)' }]} duration={2} height={130} markers={[{ t: q.x, color: 'var(--trace-b)' }]} label="Speaker position over time, with one moment marked" />
+              </ConeGraph>
+              <Choices options={CONE_OPTIONS} correct={correct} picked={choice} onPick={choose} columns={3} />
+            </>
+          ) : q.kind === 'idea' ? (
+            <>
+              <p className="question">{IDEAS[q.idea].q}</p>
+              <Choices options={q.order.map((i) => ({ id: String(i), label: IDEAS[q.idea].options[i] }))} correct="0" picked={choice} onPick={choose} columns={1} />
+            </>
+          ) : null}
+          <FeedbackSlot>{choice && <Feedback ok={choice === correct}>{explain}</Feedback>}</FeedbackSlot>
+          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

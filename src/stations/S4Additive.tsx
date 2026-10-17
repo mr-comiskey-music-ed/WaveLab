@@ -1,14 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { audio } from '../lib/audio';
 import { harmonicValue, midiToFreq, peakOf, pick, rand, randInt, shuffle, WAVE_NAMES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
 import { HarmonicBars } from '../components/HarmonicBars';
 import { Drawbars } from '../components/Drawbars';
-import { Choices, Feedback, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { useSaved } from '../lib/persist';
+import { mcScore, skillScore } from '../lib/stations';
 import type { StationProps } from './types';
 
 const LEVELS = [0, 0.25, 0.5, 0.75, 1];
-const PEEK_CAP = 80;
+/** Match closeness (0–100) at or above this counts as a full-credit match. */
+const FULL_MATCH = 80;
+/** Peeking at the shape caps the grade for that round. */
+const PEEK_CAP_QUALITY = 0.6;
+const matchQuality = (raw: number) => (raw - 40) / (FULL_MATCH - 40);
 
 /** 0–100: how close two harmonic recipes are, ignoring overall volume. */
 export function matchScore(mine: number[], target: number[]) {
@@ -83,15 +89,15 @@ function makeQuestions(): Q[] {
 const LABEL = (q: Q) => (q.kind === 'point' ? 'Add two points' : q.kind === 'pick' ? 'Pick the combined wave' : `Match ${q.target.length} harmonics by ear`);
 
 export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
-  const [qs] = useState(makeQuestions);
-  const [mine, setMine] = useState<Record<number, number[]>>(() =>
+  const [qs] = useSaved('add:qs', makeQuestions);
+  const [mine, setMine] = useSaved<Record<number, number[]>>('add:mine', () =>
     Object.fromEntries(qs.map((q, i) => [i, q.kind === 'match' ? q.target.map((_, k) => (k === 0 ? 1 : 0)) : []]))
   );
-  const [peeked, setPeeked] = useState<Record<number, boolean>>({});
-  const [raw, setRaw] = useState<Record<number, number>>({});
-  const [picked, setPicked] = useState<Record<number, string>>({});
-  const [summary, setSummary] = useState(false);
-  const r = useRounds(qs.length, done, onComplete);
+  const [peeked, setPeeked] = useSaved<Record<number, boolean>>('add:peeked', {});
+  const [raw, setRaw] = useSaved<Record<number, number>>('add:raw', {});
+  const [picked, setPicked] = useSaved<Record<number, string>>('add:picked', {});
+  const [summary, setSummary] = useSaved('add:summary', false);
+  const r = useRounds('add', qs.length, done, onComplete);
   const q = qs[r.index];
   const bars = mine[r.index];
   const locked = r.answered;
@@ -128,13 +134,14 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
     if (q.kind !== 'match') return;
     const score = matchScore(bars, q.target);
     setRaw({ ...raw, [r.index]: score });
-    r.answer(peeked[r.index] ? Math.min(score, PEEK_CAP) : score);
+    const quality = matchQuality(score);
+    r.answer(skillScore(peeked[r.index] ? Math.min(quality, PEEK_CAP_QUALITY) : quality));
   };
 
   // ---- choice helpers ----
   const choose = (id: string, correct: string) => {
     setPicked({ ...picked, [r.index]: id });
-    r.answer(id === correct ? 100 : 0);
+    r.answer(mcScore(id === correct));
   };
 
   const playPair = (a: Wave2, b: Wave2) => {
@@ -146,9 +153,9 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
   const score = r.current;
   return (
     <div className="station">
-      <StationHeader {...info} />
+      <StationHeader info={info} />
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map(LABEL)} onNext={onNext} />
+        <StationDone scores={r.scores} labels={qs.map(LABEL)} kinds={qs.map((x) => (x.kind === 'match' ? 'skill' : 'mc'))} onNext={onNext} />
       ) : (
         <Section title="Check yourself" note="First, waveform addition. Then rebuild sounds from sine waves using your ears.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
@@ -178,11 +185,11 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                 onPick={(id) => choose(id, String(r1(q.va + q.vb)))}
                 columns={4}
               />
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={choice === String(r1(q.va + q.vb))}>
                   Just add the two displacements: {q.va} + ({q.vb}) = {r1(q.va + q.vb)}. One wave pushes, the other pulls, like two people in a tug-of-war, so they partly cancel. The black line is the combined wave.
                 </Feedback>
-              )}
+              )}</FeedbackSlot>
             </>
           )}
 
@@ -220,12 +227,16 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   );
                 })}
               </div>
-              {choice && (
+              <FeedbackSlot>{choice && (
                 <Feedback ok={choice === 'sum'}>
                   The combined wave follows the slow blue wave but carries the faster pink wiggle on top. One wrong graph subtracts the pink wave instead of adding it; the other just makes the blue wave taller.
                 </Feedback>
-              )}
-              {choice && <PlayButton onClick={() => playPair(q.a, q.b)}>Hear them together (sped up)</PlayButton>}
+              )}</FeedbackSlot>
+              <div className="btn-row">
+                <PlayButton disabled={!choice} onClick={() => playPair(q.a, q.b)}>
+                  Hear them together (sped up)
+                </PlayButton>
+              </div>
             </>
           )}
 
@@ -233,7 +244,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
             <>
               <p className="question">
                 {q.classic
-                  ? 'This mystery sound is the start of one of the waveforms from Part 3, built from its first five harmonics (like The Pudding’s 1 Hz + 3 Hz example). Rebuild it with the faders.'
+                  ? 'This mystery sound is the start of one of the waveforms from Part 3, built from its first five harmonics (like the Waveforms site’s 1 Hz + 3 Hz example). Rebuild it with the faders.'
                   : 'A new mystery sound, built from sine waves at harmonics 1, 2, 3... Rebuild it with the faders.'}
               </p>
               <p className="hint">Compare by ear as many times as you like, then lock it in.</p>
@@ -269,15 +280,15 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   </button>
                   {!peeked[r.index] && (
                     <button className="btn quiet" onClick={() => setPeeked({ ...peeked, [r.index]: true })}>
-                      Peek at the mystery shape (max {PEEK_CAP}% this round)
+                      Peek at the mystery shape (you'll get less credit this round)
                     </button>
                   )}
                 </div>
               )}
               {locked && score !== null && (
                 <>
-                  <Feedback ok={score >= 85 ? true : score >= 60 ? 'partial' : false}>
-                    Your match: {raw[r.index]}%{peeked[r.index] && raw[r.index] > PEEK_CAP ? ` (capped at ${PEEK_CAP}% for peeking)` : ''}.{' '}
+                  <Feedback ok={raw[r.index] >= FULL_MATCH ? true : raw[r.index] >= 60 ? 'partial' : false}>
+                    You matched it {raw[r.index]}%{raw[r.index] >= FULL_MATCH ? ', which counts as a full match' : ''}.{' '}
                     {q.classic
                       ? `It was the start of a ${WAVE_NAMES[q.classic].toLowerCase()} wave: ${q.classic === 'square' ? 'odd harmonics only, each one quieter (1, 1/3, 1/5).' : 'every harmonic, each one quieter (1, 1/2, 1/3, 1/4, 1/5).'} Add more harmonics and it gets closer and closer to the real thing.`
                       : 'Here’s the real recipe. Play both again and listen for the difference.'}
@@ -297,7 +308,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
             </>
           )}
 
-          {r.answered && <NextButton isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />}
+          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

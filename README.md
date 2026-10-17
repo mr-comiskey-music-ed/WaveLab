@@ -1,7 +1,8 @@
 # WaveLab
 
-A lab companion to The Pudding's [Let's Learn About Waveforms](https://pudding.cool/2018/02/waveforms/).
-Students read The Pudding on one half of the screen and work through WaveLab on the other.
+A lab companion to The Pudding's interactive [Waveforms site](https://pudding.cool/2018/02/waveforms/).
+Students read the Waveforms site on one half of the screen and work through WaveLab on the other.
+Each station opens with a pop-up that jumps the Waveforms window to the right section.
 
 ## Stations
 
@@ -11,18 +12,20 @@ Students read The Pudding on one half of the screen and work through WaveLab on 
 | 2 | How sound works | 2. How Sound Works | connect the graph to a speaker cone and moving air |
 | 3 | Harmonics | 3. Harmonics | name sine, triangle, square and saw by ear and by their harmonics |
 | 4 | Additive synthesis | 4. Additive Synthesis | rebuild a sound from sine harmonics by ear |
-| 5 | Phase | 4a. Phase | hear phase cancellation and fix it (timing and polarity) |
-| 6 | Chords | 4b. Chords | see why simple ratios blend and complex ones clash |
+| 5 | Phase | 4a. Phase | fix phase between two mics: DAW region nudge, polarity, overhead placement |
+| 6 | Chords | 4b. Chords | see a chord as added waves; match intervals by ear on a piano |
 | 7 | Make a sound | In Conclusion | design a sound for a brief and explain it with harmonics |
 
 Stations 1–6 are auto-graded: every student gets different random questions, one try per round.
-Station 7 is for the teacher to grade (the grader can play each student's sound).
+Right/wrong rounds are worth 100 or 50; slider/matching rounds earn 50–100. Students see words, not numbers.
+Station 7 is for the teacher to grade (the grader plays each student's sound in its brief's loop).
+Progress saves in the student's browser (localStorage, no name), so they can stop and come back.
 
 ## Grading
 
-Students click **Get my code** and paste the code into Google Classroom.
-Open the app with `?teacher` (or the "Teacher: grade codes" link at the bottom), paste a whole column of codes,
-and download a CSV. Nothing is stored or sent anywhere; refreshing the page clears a student's progress.
+Open **Teacher tools** (`?teacher`, linked at the bottom) to make an assignment link for just some sections
+(`?s=read,harm`), and to grade: paste a whole column of codes and download a CSV. Students click **Get my code**
+and paste the code into Google Classroom. Nothing is sent anywhere.
 
 ## Development
 

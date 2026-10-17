@@ -1,11 +1,13 @@
 import { ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 import { audio } from './lib/audio';
-import { AUTO_STATIONS, Capstone, CAPSTONE_BRIEFS, Results, StationId, StationResult, STATIONS } from './lib/stations';
+import { assignedFromUrl, Capstone, CAPSTONE_BRIEFS, Results, StationId, StationResult, STATIONS } from './lib/stations';
 import { capstoneComplete, emptyCapstone } from './lib/capstone';
+import { clearProgress, initProgress, useSaved } from './lib/persist';
 import { shuffle } from './lib/waves';
-import { openPudding, SplitHelp } from './components/SplitHelp';
+import { openSite, SplitHelp } from './components/SplitHelp';
 import { Finish } from './components/Finish';
 import { TeacherGrader } from './components/TeacherGrader';
+import { ReadFirstModal } from './components/ui';
 import { S1Reading } from './stations/S1Reading';
 import { S2Sound } from './stations/S2Sound';
 import { S3Harmonics } from './stations/S3Harmonics';
@@ -24,16 +26,31 @@ const QUIZ_COMPONENTS: Record<Exclude<StationId, 'make'>, (p: StationProps) => R
   chord: S6Chords,
 };
 
+// Which sections this link assigns, and the matching save slot on this device.
+const ASSIGNED = assignedFromUrl(window.location.search);
+const MY_STATIONS = STATIONS.filter((s) => ASSIGNED.includes(s.id));
+const IS_TEACHER = new URLSearchParams(window.location.search).has('teacher');
+initProgress(ASSIGNED.join(','));
+
+// Per-device conveniences (not student work).
 const HELP_SEEN_KEY = 'wavelab-split-help-seen';
-const readHelpSeen = () => {
+const VOLUME_TIP_KEY = 'wavelab-volume-tip-dismissed';
+const getFlag = (k: string) => {
   try {
-    return localStorage.getItem(HELP_SEEN_KEY) === '1';
+    return localStorage.getItem(k) === '1';
   } catch {
     return false;
   }
 };
+const setFlag = (k: string) => {
+  try {
+    localStorage.setItem(k, '1');
+  } catch {
+    /* fine */
+  }
+};
 
-type View = { kind: 'station'; index: number } | { kind: 'finish' } | { kind: 'teacher' };
+type View = { kind: 'station'; id: StationId } | { kind: 'finish' } | { kind: 'teacher' };
 
 function Logo() {
   return (
@@ -44,23 +61,56 @@ function Logo() {
   );
 }
 
+function VolumeControl() {
+  const [v, setV] = useState(audio.volume);
+  return (
+    <label className="volume">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 8h3l4-3.5v11L6 12H3z" fill="currentColor" />
+        <path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <span className="sr-only">Volume</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={v}
+        onChange={(e) => {
+          setV(+e.target.value);
+          audio.setVolume(+e.target.value);
+        }}
+      />
+    </label>
+  );
+}
+
 export default function App() {
-  const [view, setView] = useState<View>(() => (new URLSearchParams(window.location.search).has('teacher') ? { kind: 'teacher' } : { kind: 'station', index: 0 }));
-  const [results, setResults] = useState<Results>({});
-  const [briefChoices] = useState(() => shuffle(CAPSTONE_BRIEFS.map((_, i) => i)).slice(0, 3));
-  const [capstone, setCapstone] = useState<Capstone>(() => emptyCapstone(-1));
-  const [startedAt] = useState(() => Date.now());
-  const [showHelp, setShowHelp] = useState(() => view.kind !== 'teacher' && !readHelpSeen());
+  const [savedView, setSavedView] = useSaved<View>('view', { kind: 'station', id: MY_STATIONS[0].id });
+  const view: View = IS_TEACHER ? { kind: 'teacher' } : savedView.kind === 'station' && !ASSIGNED.includes(savedView.id) ? { kind: 'station', id: MY_STATIONS[0].id } : savedView;
+  const setView = (v: View) => {
+    if (IS_TEACHER && v.kind !== 'teacher') {
+      window.location.href = window.location.pathname;
+      return;
+    }
+    setSavedView(v);
+  };
+  const [results, setResults] = useSaved<Results>('results', {});
+  const [briefChoices] = useSaved('briefChoices', () => shuffle(CAPSTONE_BRIEFS.map((_, i) => i)).slice(0, 3));
+  const [capstone, setCapstone] = useSaved<Capstone>('capstone', () => emptyCapstone(-1));
+  const [startedAt] = useSaved('startedAt', () => Date.now());
+  const [seen, setSeen] = useSaved<StationId[]>('readFirstSeen', []);
+  const [showHelp, setShowHelp] = useState(() => !IS_TEACHER && !getFlag(HELP_SEEN_KEY));
+  const [volumeTip, setVolumeTip] = useState(() => !getFlag(VOLUME_TIP_KEY));
   const [wideTip, setWideTip] = useState(false);
   const copiedRef = useRef(false);
 
-  // Stop sound whenever the view changes.
   useEffect(() => {
     audio.stopAll();
     window.scrollTo({ top: 0 });
-  }, [view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.kind, view.kind === 'station' ? view.id : '']);
 
-  // Suggest split screen if the window is very wide.
   useEffect(() => {
     const check = () => setWideTip(window.innerWidth > 1150);
     check();
@@ -68,26 +118,9 @@ export default function App() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Warn before leaving with unsaved work (nothing is stored anywhere).
-  const hasWork = Object.keys(results).length > 0 || capstone.why.trim().length > 0;
-  useEffect(() => {
-    const onLeave = (e: BeforeUnloadEvent) => {
-      if (hasWork && !copiedRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', onLeave);
-    return () => window.removeEventListener('beforeunload', onLeave);
-  }, [hasWork]);
-
   const closeHelp = useCallback(() => {
     setShowHelp(false);
-    try {
-      localStorage.setItem(HELP_SEEN_KEY, '1');
-    } catch {
-      /* private window: fine */
-    }
+    setFlag(HELP_SEEN_KEY);
   }, []);
 
   const complete = (id: StationId) => (r: StationResult) => {
@@ -95,9 +128,16 @@ export default function App() {
     setResults((prev) => (prev[id] ? prev : { ...prev, [id]: r }));
   };
 
-  const goStation = (index: number) => setView({ kind: 'station', index });
-  const doneCount = AUTO_STATIONS.filter((s) => results[s.id]).length;
+  const goStation = (id: StationId) => setView({ kind: 'station', id });
   const isDone = (id: StationId) => (id === 'make' ? capstoneComplete(capstone) : !!results[id]);
+  const doneCount = MY_STATIONS.filter((s) => isDone(s.id)).length;
+  const allDone = doneCount === MY_STATIONS.length;
+  const currentInfo = view.kind === 'station' ? MY_STATIONS.find((s) => s.id === view.id)! : null;
+  const showReadFirst = !!currentInfo && !showHelp && !seen.includes(currentInfo.id);
+  const closeReadFirst = useCallback(() => {
+    if (currentInfo) setSeen((s) => (s.includes(currentInfo.id) ? s : [...s, currentInfo.id]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInfo?.id]);
 
   if (view.kind === 'teacher') {
     return (
@@ -106,15 +146,21 @@ export default function App() {
           <div className="brand">
             <Logo />
             <span className="wordmark">WaveLab</span>
-            <span className="tagline">Teacher grading</span>
+            <span className="tagline">Teacher tools</span>
+          </div>
+          <div className="top-actions">
+            <VolumeControl />
           </div>
         </header>
         <main className="page">
-          <TeacherGrader onBack={() => goStation(0)} />
+          <TeacherGrader onBack={() => (window.location.href = window.location.pathname)} />
         </main>
       </div>
     );
   }
+
+  const index = currentInfo ? MY_STATIONS.indexOf(currentInfo) : -1;
+  const nextStation = index >= 0 && index < MY_STATIONS.length - 1 ? MY_STATIONS[index + 1] : null;
 
   return (
     <div className="app">
@@ -122,11 +168,12 @@ export default function App() {
         <div className="brand">
           <Logo />
           <span className="wordmark">WaveLab</span>
-          <span className="tagline">A lab companion to The Pudding's waveforms guide</span>
+          <span className="tagline">A lab companion to The Pudding’s interactive Waveforms site</span>
         </div>
         <div className="top-actions">
-          <button className="btn secondary small" onClick={openPudding}>
-            Open The Pudding
+          <VolumeControl />
+          <button className="btn secondary small" onClick={() => openSite()}>
+            Open the Waveforms site
           </button>
           <button className="btn quiet small" onClick={() => setShowHelp(true)}>
             Split-screen help
@@ -134,59 +181,91 @@ export default function App() {
         </div>
       </header>
 
+      {volumeTip && (
+        <div className="tip volume-tip">
+          <span>
+            🔊 Before you start, turn your Chromebook’s volume to about <strong>halfway</strong>. Some sounds are high-pitched.
+          </span>
+          <button
+            className="link"
+            onClick={() => {
+              setVolumeTip(false);
+              setFlag(VOLUME_TIP_KEY);
+            }}
+          >
+            Done
+          </button>
+        </div>
+      )}
       {wideTip && (
         <div className="tip">
-          WaveLab is made to sit next to The Pudding.{' '}
+          WaveLab is made to sit next to the Waveforms site.{' '}
           <button className="link" onClick={() => setShowHelp(true)}>
             Set up split screen
           </button>
         </div>
       )}
 
-      <nav className="steps" aria-label="Stations">
-        <ol>
-          {STATIONS.map((s, i) => {
-            const active = view.kind === 'station' && view.index === i;
-            return (
-              <li key={s.id} className={`${active ? 'active' : ''} ${isDone(s.id) ? 'done' : ''}`}>
-                <button onClick={() => goStation(i)} aria-current={active ? 'step' : undefined} title={s.title}>
-                  <span className="dot">{isDone(s.id) ? '✓' : i + 1}</span>
-                  <span className="step-name">{s.short}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      {MY_STATIONS.length > 1 && (
+        <nav className="steps" aria-label="Stations">
+          <ol style={{ gridTemplateColumns: `repeat(${MY_STATIONS.length}, minmax(56px, 1fr))`, maxWidth: Math.max(240, MY_STATIONS.length * 104) }}>
+            {MY_STATIONS.map((s) => {
+              const n = STATIONS.indexOf(s) + 1;
+              const active = view.kind === 'station' && view.id === s.id;
+              return (
+                <li key={s.id} className={`${active ? 'active' : ''} ${isDone(s.id) ? 'done' : ''}`}>
+                  <button onClick={() => goStation(s.id)} aria-current={active ? 'step' : undefined} title={s.title}>
+                    <span className="dot">{isDone(s.id) ? '✓' : n}</span>
+                    <span className="step-name">{s.short}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      )}
 
       <main className="page">
-        {STATIONS.map((s, i) => {
-          const hidden = !(view.kind === 'station' && view.index === i);
-          const next = i < STATIONS.length - 1 ? () => goStation(i + 1) : undefined;
-          return (
-            <div key={s.id} hidden={hidden}>
-              {s.id === 'make' ? (
-                <S7Make info={s} capstone={capstone} choices={briefChoices} onChange={(c) => {
-                  copiedRef.current = false;
-                  setCapstone(c);
-                }} onFinish={() => setView({ kind: 'finish' })} />
-              ) : (
-                (() => {
-                  const Comp = QUIZ_COMPONENTS[s.id];
-                  return <Comp info={s} done={results[s.id]} onComplete={complete(s.id)} onNext={next} />;
-                })()
-              )}
-            </div>
-          );
-        })}
+        {currentInfo &&
+          (currentInfo.id === 'make' ? (
+            <S7Make
+              key="make"
+              info={currentInfo}
+              capstone={capstone}
+              choices={briefChoices}
+              onChange={(c) => {
+                copiedRef.current = false;
+                setCapstone(c);
+              }}
+              onFinish={() => setView({ kind: 'finish' })}
+            />
+          ) : (
+            (() => {
+              const Comp = QUIZ_COMPONENTS[currentInfo.id];
+              return (
+                <Comp
+                  key={currentInfo.id}
+                  info={currentInfo}
+                  done={results[currentInfo.id]}
+                  onComplete={complete(currentInfo.id)}
+                  onNext={nextStation ? () => goStation(nextStation.id) : () => setView({ kind: 'finish' })}
+                />
+              );
+            })()
+          ))}
         {view.kind === 'finish' && (
           <Finish
             results={results}
             capstone={capstone}
             startedAt={startedAt}
+            assigned={ASSIGNED}
             onGoTo={goStation}
             onCopied={() => {
               copiedRef.current = true;
+            }}
+            onStartOver={() => {
+              clearProgress();
+              window.location.reload();
             }}
           />
         )}
@@ -194,17 +273,18 @@ export default function App() {
 
       <footer className="bottom">
         <span className="progress">
-          {doneCount} of {AUTO_STATIONS.length} stations done{capstoneComplete(capstone) ? ', sound made' : ''}
+          {doneCount} of {MY_STATIONS.length} {MY_STATIONS.length === 1 ? 'station' : 'stations'} done. Your progress saves automatically.
         </span>
-        <button className="btn primary" onClick={() => setView({ kind: 'finish' })}>
-          Get my code
+        <button className={`btn ${allDone ? 'primary' : 'quiet'}`} onClick={() => setView({ kind: 'finish' })}>
+          {allDone ? 'Get my code' : 'Turn in / get code'}
         </button>
       </footer>
       <p className="teacher-link">
-        <a href="?teacher">Teacher: grade codes</a>
+        <a href="?teacher">Teacher tools</a>
       </p>
 
       {showHelp && <SplitHelp onClose={closeHelp} />}
+      {showReadFirst && currentInfo && <ReadFirstModal key={currentInfo.id} info={currentInfo} onClose={closeReadFirst} />}
     </div>
   );
 }

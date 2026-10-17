@@ -3,7 +3,9 @@ import { audio } from '../lib/audio';
 import { harmonicValue, midiToFreq, peakOf, pick, randInt, recipe, shuffle, WaveType, WAVE_NAMES, WAVE_TYPES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
 import { HarmonicBars } from '../components/HarmonicBars';
-import { Choices, Feedback, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { useSaved } from '../lib/persist';
+import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
 
 /** Short descriptions in The Pudding's own terms. */
@@ -62,10 +64,10 @@ const LABEL: Record<Q['kind'], string> = {
 
 export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
   const [refWave, setRefWave] = useState<WaveType>('sine');
-  const [qs] = useState(makeQuestions);
-  const [picked, setPicked] = useState<Record<number, string>>({});
-  const [summary, setSummary] = useState(false);
-  const r = useRounds(qs.length, done, onComplete);
+  const [qs] = useSaved('harm:qs', makeQuestions);
+  const [picked, setPicked] = useSaved<Record<number, string>>('harm:picked', {});
+  const [summary, setSummary] = useSaved('harm:summary', false);
+  const r = useRounds('harm', qs.length, done, onComplete);
   const q = qs[r.index];
   const choice = picked[r.index] ?? null;
   const refFn = useMemo(() => shape(refWave), [refWave]);
@@ -81,13 +83,13 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
   const ok = choice === correct;
   const choose = (id: string) => {
     setPicked({ ...picked, [r.index]: id });
-    r.answer(id === correct ? 100 : 0);
+    r.answer(mcScore(id === correct));
   };
 
   return (
     <div className="station">
-      <StationHeader {...info} />
-      <Section title="Listen to the four waveforms" note="Same note, four shapes. The bar chart shows each one's harmonics, like the charts in The Pudding (with a 1 Hz root). Listen a few times: you won't see the shapes in the ear rounds.">
+      <StationHeader info={info} />
+      <Section title="Listen to the four waveforms" note="Same note, four shapes. The bar chart shows each one's harmonics, like the charts on the Waveforms site (with a 1 Hz root). Listen a few times: you won't see the shapes in the ear rounds.">
         <div className="seg" role="group" aria-label="Waveform">
           {WAVE_TYPES.map((w) => (
             <button
@@ -112,7 +114,7 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
       </Section>
 
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} onNext={onNext} />
+        <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />
       ) : (
         <Section title="Check yourself" note="One try per round. Ear rounds use a different note each time, so listen for the tone color, not the pitch.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
@@ -148,29 +150,39 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
             </>
           )}
 
-          {choice && q.kind === 'math' && (
-            <Feedback ok={ok}>
-              Harmonics are always multiples of the root frequency. The {ORDINAL[q.n]} harmonic is {q.n} × {q.root} Hz = {(q.n * q.root).toLocaleString()} Hz.
-            </Feedback>
-          )}
-          {choice && qWave && qFn && (
-            <>
+          <FeedbackSlot>
+            {choice && q.kind === 'math' && (
+              <Feedback ok={ok}>
+                Harmonics are always multiples of the root frequency. The {ORDINAL[q.n]} harmonic is {q.n} × {q.root} Hz = {(q.n * q.root).toLocaleString()} Hz.
+              </Feedback>
+            )}
+            {choice && qWave && (
               <Feedback ok={ok}>
                 {q.kind === 'which' ? 'A' : 'It was a'} <strong>{WAVE_NAMES[qWave].toLowerCase()}</strong>
                 {q.kind === 'which' ? ' has ' : ': '}
                 {ABOUT[qWave]}
               </Feedback>
-              <div className="split">
-                <WavePlot traces={[{ fn: (t) => qFn(t * 2), color: 'var(--trace-b)' }]} duration={1} height={110} label="The waveform's shape" />
-                {q.kind === 'bars' ? (
-                  <PlayButton onClick={() => play(qWave, 48)}>Hear it</PlayButton>
-                ) : (
-                  <HarmonicBars amps={recipe(qWave, 10)} count={10} rootHz={1} color="var(--trace-b)" label="The waveform's harmonics" />
-                )}
-              </div>
-            </>
+            )}
+          </FeedbackSlot>
+          {q.kind !== 'math' && (
+            <div className="split reveal">
+              <WavePlot
+                traces={choice && qFn ? [{ fn: (t: number) => qFn(t * 2), color: 'var(--trace-b)' }] : []}
+                duration={1}
+                height={110}
+                label={choice ? "The waveform's shape" : 'Shape hidden until you answer'}
+              />
+              <HarmonicBars amps={choice && qWave ? recipe(qWave, 10) : []} count={10} rootHz={1} color="var(--trace-b)" label="The waveform's harmonics" />
+            </div>
           )}
-          {r.answered && <NextButton isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />}
+          {q.kind !== 'math' && qWave && (
+            <div className="btn-row">
+              <PlayButton disabled={!choice} onClick={() => play(qWave, q.kind === 'ear' ? q.midi : 48)}>
+                Hear it again
+              </PlayButton>
+            </div>
+          )}
+          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>
