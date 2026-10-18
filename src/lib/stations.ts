@@ -81,7 +81,7 @@ export const STATIONS: StationInfo[] = [
     section: '4. Additive Synthesis: Chords',
     jumpText: 'The difference is the scale',
     findText: 'Another way to think',
-    goal: 'See a chord as waves added together, and recognise intervals by ear.',
+    goal: 'See a chord as waves added together, and match each interval to its waveform.',
     auto: true,
   },
   {
@@ -159,7 +159,7 @@ export const CAPSTONE_BRIEFS = [
   'A notification sound for an app that helps people sleep',
   'The final boss in a retro video game',
   'An alarm that is impossible to ignore',
-  'A warm pad for the slow intro of an R&B song',
+  'The music for a dream sequence in a movie',
   'A sound for a magic spell that heals',
   'The bass for a song played in a huge, dark club',
   'A doorbell for a house in the year 3000',

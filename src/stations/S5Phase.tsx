@@ -25,7 +25,9 @@ type Round =
 /** The headphone electronics have a built-in delay (the target). The slider starts well away from it. */
 function busRound(): Round {
   const targetMs = Math.round(rand(1.6, 4.2) * 20) / 20;
-  const startMs = targetMs > 3 ? Math.round(rand(0.2, 1.2) * 20) / 20 : Math.round(rand(4.6, 5.8) * 20) / 20;
+  // start a bit off, but not far: between 0.6 and 1.2 ms away, on a random side
+  const away = Math.round(rand(0.6, 1.2) * 20) / 20;
+  const startMs = Math.round((targetMs + (Math.random() < 0.5 || targetMs - away < 0.2 ? away : -away)) * 20) / 20;
   return { kind: 'train', startMs, targetMs };
 }
 
