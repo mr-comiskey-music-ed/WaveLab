@@ -217,10 +217,6 @@ export function TeacherGrader({ onBack }: { onBack: () => void }) {
             Couldn’t read {unreadable.length} code{unreadable.length > 1 ? 's' : ''} (incomplete, mistyped or edited): {unreadable.join(', ')}. Ask those students to copy their code again.
           </p>
         )}
-        <p className="muted small">
-          Grading: right/wrong questions are worth 100 for right and 50 for wrong; slider and matching rounds earn 50 to 100 depending on how close they got. Unfinished assigned stations count as 0. Students
-          see words like “Correct” and “Close”, not these numbers.
-        </p>
       </section>
 
       {entries && entries.length > 0 && (
