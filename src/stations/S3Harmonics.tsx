@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../lib/audio';
 import { harmonicValue, midiToFreq, peakOf, pick, randInt, recipe, shuffle, WaveType, WAVE_NAMES, WAVE_TYPES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
 import { HarmonicBars } from '../components/HarmonicBars';
-import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, LoopButton, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
 import { useSaved } from '../lib/persist';
 import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
+import { WaveIcon } from '../components/WaveIcon';
+import { Piano } from '../components/Piano';
+import { playRoleLoop, REACH_FOR, ROLES } from '../lib/synthDemos';
 
 /** Short descriptions in The Pudding's own terms. */
 const ABOUT: Record<WaveType, string> = {
@@ -53,7 +56,82 @@ function makeQuestions(): Q[] {
   return [ear[0], ear[1], bars[0], makeMath(), ear[2], bars[1], ear[3], { kind: 'which', wave: pick(['triangle', 'square', 'sawtooth'] as const) }];
 }
 
-const OPTIONS = WAVE_TYPES.map((w) => ({ id: w, label: WAVE_NAMES[w] }));
+const OPTIONS = WAVE_TYPES.map((w) => ({
+  id: w,
+  label: (
+    <span className="icon-label">
+      <WaveIcon type={w} /> {WAVE_NAMES[w]}
+    </span>
+  ),
+}));
+
+/** Plays one pass of a riff and lights the piano; only one riff at a time. */
+function useRiffPlayer() {
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [lit, setLit] = useState<number[]>([]);
+  const stopRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopRef.current?.(), []);
+  const play = (id: string, loopFrom: WaveType, wave: WaveType) => {
+    stopRef.current?.();
+    setPlaying(id);
+    stopRef.current = playRoleLoop(loopFrom, wave, setLit, () => setPlaying((p) => (p === id ? null : p)));
+  };
+  const stop = () => {
+    stopRef.current?.();
+    stopRef.current = null;
+    setPlaying(null);
+  };
+  return { playing, lit, play, stop };
+}
+
+/** Not graded: try each waveform on a job, then reveal what's usually used. */
+function ReachFor() {
+  const riff = useRiffPlayer();
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [active, setActive] = useState(0);
+  return (
+    <Section
+      title="What would you reach for?"
+      note="Just for exploring, nothing here is graded. Try each waveform on the job, decide what you like, then reveal what producers often use. There's no wrong taste!"
+    >
+      {REACH_FOR.map((b, i) => (
+        <div key={i} className="reach">
+          <p className="reach-brief">{b.brief}</p>
+          <div className="seg" role="group" aria-label="Try a waveform">
+            {WAVE_TYPES.map((w) => {
+              const id = `${i}:${w}`;
+              return (
+                <button
+                  key={w}
+                  className={riff.playing === id ? 'on' : ''}
+                  aria-pressed={riff.playing === id}
+                  onClick={() => {
+                    setActive(i);
+                    riff.playing === id ? riff.stop() : riff.play(id, b.loopFrom, w);
+                  }}
+                >
+                  <span className="icon-label">
+                    <WaveIcon type={w} /> {WAVE_NAMES[w]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {revealed[i] ? (
+            <p className="reveal-text">
+              Often used: <strong>{WAVE_NAMES[b.answer]}</strong>. {b.why}
+            </p>
+          ) : (
+            <button className="link" onClick={() => setRevealed({ ...revealed, [i]: true })}>
+              Reveal what’s often used
+            </button>
+          )}
+          {active === i && riff.playing?.startsWith(`${i}:`) && <Piano lo={36} hi={84} lit={riff.lit} label="Notes playing" showNames={false} />}
+        </div>
+      ))}
+    </Section>
+  );
+}
 
 const LABEL: Record<Q['kind'], string> = {
   ear: 'Name it by ear',
@@ -64,6 +142,7 @@ const LABEL: Record<Q['kind'], string> = {
 
 export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
   const [refWave, setRefWave] = useState<WaveType>('sine');
+  const riffPlayer = useRiffPlayer();
   const [qs] = useSaved('harm:qs', makeQuestions);
   const [picked, setPicked] = useSaved<Record<number, string>>('harm:picked', {});
   const [summary, setSummary] = useSaved('harm:summary', false);
@@ -97,21 +176,40 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
               className={w === refWave ? 'on' : ''}
               aria-pressed={w === refWave}
               onClick={() => {
+                riffPlayer.stop();
                 setRefWave(w);
                 play(w, 48);
               }}
             >
-              {WAVE_NAMES[w]}
+              <span className="icon-label">
+                <WaveIcon type={w} /> {WAVE_NAMES[w]}
+              </span>
             </button>
           ))}
         </div>
+        <p className="muted small">These little symbols are printed on the oscillator switch of almost every synth, including the ones in your DAW.</p>
         <WavePlot traces={[{ fn: (t) => refFn(t * 2), color: 'var(--trace-a)' }]} duration={1} height={120} label={`${WAVE_NAMES[refWave]} wave shape`} />
         <HarmonicBars amps={recipe(refWave, 12)} rootHz={1} label={`Harmonics of a ${refWave} wave`} />
         <p className="about">
           <strong>{WAVE_NAMES[refWave]}:</strong> {ABOUT[refWave]}
         </p>
-        <PlayButton onClick={() => play(refWave, 48)}>Play {WAVE_NAMES[refWave].toLowerCase()}</PlayButton>
+        <div className="where-heard">
+          <p>
+            <strong>Where you’ve heard it:</strong> {ROLES[refWave].role}. {ROLES[refWave].detail}
+          </p>
+          <div className="btn-row">
+            <PlayButton onClick={() => play(refWave, 48)}>Play one note</PlayButton>
+            <LoopButton
+              on={riffPlayer.playing === 'ref'}
+              onToggle={() => (riffPlayer.playing === 'ref' ? riffPlayer.stop() : riffPlayer.play('ref', refWave, refWave))}
+              playLabel="Hear it in a riff"
+            />
+          </div>
+          {riffPlayer.playing === 'ref' && <Piano lo={33} hi={84} lit={riffPlayer.lit} label="Notes playing" showNames={false} />}
+        </div>
       </Section>
+
+      <ReachFor />
 
       {summary ? (
         <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />

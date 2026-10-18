@@ -8,6 +8,7 @@ import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Sect
 import { useSaved } from '../lib/persist';
 import { mcScore, skillScore } from '../lib/stations';
 import type { StationProps } from './types';
+import { HammondOrgan } from '../components/HammondOrgan';
 
 const LEVELS = [0, 0.25, 0.5, 0.75, 1];
 /** Match closeness (0–100) at or above this counts as a full-credit match. */
@@ -312,6 +313,30 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
           <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
+
+      <Section
+        title="Playground: the drawbar organ"
+        note={
+          <>
+            Fun fact: a Hammond organ is additive synthesis you can play. Each drawbar adds one sine-wave harmonic, just like the faders above. Pull a bar down to make it louder. The names (16′,
+            8′, 4′...) come from pipe-organ pipe lengths: 8′ is the note you play, 4′ is an octave up, 16′ an octave down. The Leslie is the spinning speaker that gives the organ its swirl.
+            Nothing here is graded, so play!
+          </>
+        }
+      >
+        <HammondOrgan />
+      </Section>
+
+      <section className="panel next-idea">
+        <h3>Where this goes next</h3>
+        <p>
+          Additive synthesis builds a sound up from sine waves. Most synths work the other way around: start with a harmonic-rich wave like a saw or square, then use a filter to take harmonics
+          away. That’s called <strong>subtractive synthesis</strong>.
+        </p>
+        <a className="btn secondary" href="https://synthlab.mrcomiskey.com" target="_blank" rel="noopener">
+          Try subtractive synthesis in SynthLab
+        </a>
+      </section>
     </div>
   );
 }

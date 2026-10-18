@@ -159,6 +159,88 @@ class AudioEngine {
     };
   }
 
+  // ---------- Hammond-style organ ----------
+  private leslie: { input: GainNode; tremolo: GainNode; lfo: OscillatorNode; tremDepth: GainNode; detune: GainNode } | null = null;
+
+  /** The Leslie speaker: a spinning horn that wobbles pitch and volume. */
+  private ensureLeslie() {
+    const ctx = this.ensure();
+    if (this.leslie) return this.leslie;
+    const input = ctx.createGain();
+    const tremolo = ctx.createGain();
+    tremolo.gain.value = 1;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.8;
+    const tremDepth = ctx.createGain();
+    tremDepth.gain.value = 0;
+    const detune = ctx.createGain();
+    detune.gain.value = 0;
+    lfo.connect(tremDepth).connect(tremolo.gain);
+    lfo.connect(detune);
+    lfo.start();
+    input.connect(tremolo).connect(this.master!);
+    this.leslie = { input, tremolo, lfo, tremDepth, detune };
+    return this.leslie;
+  }
+
+  /** 'off', 'slow' (chorale) or 'fast' (tremolo). Speed changes ramp, like a real Leslie spinning up. */
+  setLeslie(mode: 'off' | 'slow' | 'fast') {
+    const l = this.ensureLeslie();
+    const t = this.ctx!.currentTime;
+    const speed = mode === 'fast' ? 6.6 : 0.8;
+    l.lfo.frequency.cancelScheduledValues(t);
+    l.lfo.frequency.setTargetAtTime(speed, t, mode === 'fast' ? 0.6 : 1.2);
+    l.tremDepth.gain.setTargetAtTime(mode === 'off' ? 0 : 0.22, t, 0.2);
+    l.detune.gain.setTargetAtTime(mode === 'off' ? 0 : 9, t, 0.2);
+  }
+
+  /**
+   * One organ note. `harmonics` are relative to the 16' (sub-octave) pitch, so the
+   * oscillator runs at half the note's frequency.
+   */
+  playOrgan(spec: { freq: number; harmonics: number[]; level?: number; duration: number; delay?: number }) {
+    const ctx = this.ensure();
+    const l = this.ensureLeslie();
+    const start = ctx.currentTime + 0.02 + (spec.delay ?? 0);
+    const base = spec.freq / 2;
+    const osc = ctx.createOscillator();
+    osc.setPeriodicWave(this.wave(ctx, spec.harmonics));
+    osc.frequency.value = base;
+    l.detune.connect(osc.detune);
+    const gain = ctx.createGain();
+    const sum = spec.harmonics.reduce((s, a) => s + a, 0) || 1;
+    const peak = ((spec.level ?? 0.5) * 0.9 * loudnessComp(base, spec.harmonics)) / Math.sqrt(sum);
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(peak, start + 0.004); // organs speak instantly
+    gain.gain.setValueAtTime(peak, start + Math.max(0.01, spec.duration - 0.03));
+    gain.gain.linearRampToValueAtTime(0, start + spec.duration);
+    osc.connect(gain).connect(l.input);
+    osc.start(start);
+    osc.stop(start + spec.duration + 0.05);
+    // key click: a tiny burst of noise at the start of the note
+    const clickLen = Math.floor(ctx.sampleRate * 0.006);
+    const buf = ctx.createBuffer(1, clickLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < clickLen; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / clickLen);
+    const click = ctx.createBufferSource();
+    click.buffer = buf;
+    const cg = ctx.createGain();
+    cg.gain.value = peak * 0.25;
+    click.connect(cg).connect(l.input);
+    click.start(start);
+    const v = { osc, gain };
+    this.voices.add(v);
+    osc.onended = () => {
+      gain.disconnect();
+      try {
+        l.detune.disconnect(osc.detune);
+      } catch {
+        /* already gone */
+      }
+      this.voices.delete(v);
+    };
+  }
+
   /** A held tone whose level can change smoothly while it plays. */
   droneStart(id: string, spec: { freq: number; harmonics: number[]; level: number }) {
     const ctx = this.ensure();

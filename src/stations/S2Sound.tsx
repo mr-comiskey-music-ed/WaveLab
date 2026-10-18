@@ -5,6 +5,7 @@ import { Choices, Feedback, FeedbackSlot, NextButton, RoundBar, Section, Station
 import { useSaved } from '../lib/persist';
 import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
+import { WaveIcon } from '../components/WaveIcon';
 
 const shapeFn = (type: WaveType) => {
   const amps = recipe(type, 24);
@@ -234,7 +235,9 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
           <div className="seg" role="group" aria-label="Wave shape">
             {(['sine', 'triangle', 'square', 'sawtooth'] as WaveType[]).map((w) => (
               <button key={w} className={w === wave ? 'on' : ''} aria-pressed={w === wave} onClick={() => setWave(w)}>
-                {WAVE_NAMES[w]}
+                <span className="icon-label">
+                  <WaveIcon type={w} /> {WAVE_NAMES[w]}
+                </span>
               </button>
             ))}
           </div>
