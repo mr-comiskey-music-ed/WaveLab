@@ -12,6 +12,8 @@ export interface StationInfo {
   section: string;
   /** Text on the Waveforms site that marks where this section starts (for jump links). */
   jumpText: string;
+  /** What to type into Ctrl+F to find the section. */
+  findText: string;
   /** What students should be able to do afterwards. */
   goal: string;
   /** Counts toward the auto-graded score (the capstone is teacher-graded). */
@@ -25,6 +27,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Reading waveforms',
     section: '1. Reading Waveforms (Time, Displacement, Amplitude and Frequency)',
     jumpText: '1. Reading Waveforms',
+    findText: 'Reading Waveforms',
     goal: 'Read loudness and pitch straight off a graph, before you hear it.',
     auto: true,
   },
@@ -34,6 +37,7 @@ export const STATIONS: StationInfo[] = [
     title: 'How sound works',
     section: '2. How Sound Works',
     jumpText: '2. How Sound Works',
+    findText: 'How Sound Works',
     goal: 'Connect the line on the graph to a real speaker and real air molecules.',
     auto: true,
   },
@@ -43,6 +47,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Harmonics',
     section: '3. Harmonics (The Triangle, Square and Sawtooth Waveforms)',
     jumpText: '3. Harmonics',
+    findText: '3. Harmonics',
     goal: 'Name the four basic waveforms by ear and by their harmonics, and work out harmonic frequencies.',
     auto: true,
   },
@@ -52,6 +57,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Additive synthesis',
     section: '4. Additive Synthesis (the part before Phase)',
     jumpText: '4. Additive Synthesis',
+    findText: 'Additive Synthesis',
     goal: 'Add waves point by point, then rebuild a sound from sine waves by ear.',
     auto: true,
   },
@@ -61,6 +67,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Phase',
     section: '4. Additive Synthesis: Phase',
     jumpText: 'Something counter-intuitive about waveform addition',
+    findText: 'counter-intuitive',
     goal: 'Hear phase cancellation between two mics and fix it the way an engineer would.',
     auto: true,
   },
@@ -70,6 +77,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Chords',
     section: '4. Additive Synthesis: Chords',
     jumpText: 'Another way to think of waveform addition',
+    findText: 'Another way to think',
     goal: 'See a chord as waves added together, and recognise intervals by ear.',
     auto: true,
   },
@@ -79,6 +87,7 @@ export const STATIONS: StationInfo[] = [
     title: 'Make a sound',
     section: 'In Conclusion',
     jumpText: 'In Conclusion',
+    findText: 'In Conclusion',
     goal: 'Design an original sound for a brief and explain it with harmonics.',
     auto: false,
   },

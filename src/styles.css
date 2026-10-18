@@ -1072,11 +1072,8 @@ kbd {
 }
 
 .plot-choice {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 6px;
+  display: block;
+  padding: 4px;
   text-align: left;
 }
 
@@ -1137,7 +1134,8 @@ kbd {
 
 .next-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .cone-graph {
@@ -1311,4 +1309,19 @@ kbd {
 
 .done-score span {
   font-size: 32px;
+}
+
+.scene {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  border: 1px solid var(--grid-strong);
+  border-radius: 8px;
+}
+
+/* Same inset as the answer buttons so graphs line up exactly */
+.plot-match {
+  padding: 4px;
+  border: 2px solid transparent;
 }

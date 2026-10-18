@@ -8,8 +8,10 @@ import { SITE_URL } from '../lib/stations';
 export function openSite(url: string = SITE_URL) {
   const w = Math.round((window.screen.availWidth || 1366) / 2);
   const h = window.screen.availHeight || 768;
-  const win = window.open(url, 'waveforms-site', `popup,width=${w},height=${h},left=0,top=0`);
-  if (!win) window.open(url, '_blank', 'noopener');
+  // "noopener" detaches the window from WaveLab. Chrome only allows its "jump to text"
+  // links in windows that weren't opened by another site's script, so this lets the
+  // section links scroll to the right heading.
+  window.open(url, 'waveforms-site', `noopener,popup,width=${w},height=${h},left=0,top=0`);
 }
 
 export function SplitHelp({ onClose }: { onClose: () => void }) {

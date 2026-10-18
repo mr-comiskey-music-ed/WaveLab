@@ -198,6 +198,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
               <p className="question">
                 A {q.a.hz} Hz wave (blue) and a {q.b.hz} Hz wave at {q.b.amp} amplitude (pink) are added together. Which graph shows the combined wave?
               </p>
+              <div className="plot-match">
               <WavePlot
                 traces={[
                   { fn: sine(q.a), color: 'var(--trace-a)' },
@@ -205,9 +206,10 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                 ]}
                 duration={1}
                 yMax={1.6}
-                height={130}
+                height={120}
                 label="The two waves to add"
               />
+              </div>
               <div className="choice-plots">
                 {q.order.map((kind, i) => {
                   const fn =
@@ -221,8 +223,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   const cls = !choice ? '' : isRight ? 'right' : choice === kind ? 'wrong' : 'dim';
                   return (
                     <button key={kind} className={`choice plot-choice ${cls}`} disabled={!!choice} onClick={() => choose(kind, 'sum')} aria-label={`Graph ${id}`}>
-                      <span className="plot-choice-id">{id}</span>
-                      <WavePlot traces={[{ fn, color: 'var(--ink)', width: 2.2 }]} duration={1} yMax={1.6} height={90} label={`Option ${id}`} />
+                      <WavePlot tag={id} traces={[{ fn, color: 'var(--ink)', width: 2.2 }]} duration={1} yMax={1.6} height={120} label={`Option ${id}`} />
                     </button>
                   );
                 })}
@@ -308,7 +309,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
             </>
           )}
 
-          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

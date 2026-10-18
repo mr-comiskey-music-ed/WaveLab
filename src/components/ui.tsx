@@ -22,7 +22,8 @@ export function useRounds(key: string, total: number, done: StationResult | unde
     }
   };
   const next = () => setIndex((i) => Math.min(total - 1, i + 1));
-  return { index, current, answered: current !== null, answer, next, finished, scores: done?.rounds ?? scores, isLast: index === total - 1 };
+  const prev = () => setIndex((i) => Math.max(0, i - 1));
+  return { index, current, answered: current !== null, answer, next, prev, finished, scores: done?.rounds ?? scores, isLast: index === total - 1 };
 }
 
 export function StationHeader({ info }: { info: StationInfo }) {
@@ -65,7 +66,13 @@ export function ReadFirstModal({ info, onClose }: { info: StationInfo; onClose: 
           Take me to that section
         </button>
       </div>
-      <p className="muted small">This opens {SITE_NAME} in its window on the left and scrolls to the right spot (the heading will be highlighted).</p>
+      <p className="muted small">
+        This opens {SITE_NAME} on the left and tries to scroll to that heading. If it lands at the top instead, click on the Waveforms site, press{' '}
+        <span className="keys">
+          <kbd>Ctrl</kbd> + <kbd>F</kbd>
+        </span>{' '}
+        and type <strong>{info.findText}</strong> to jump there.
+      </p>
       <div className="modal-actions">
         <button className="btn primary" onClick={onClose}>
           Got it
@@ -155,11 +162,28 @@ export function FeedbackSlot({ children, waiting = 'Your answer and an explanati
   return <div className="feedback-slot">{children || <div className="feedback waiting">{waiting}</div>}</div>;
 }
 
-export function NextButton({ answered, isLast, onNext, onFinish }: { answered: boolean; isLast: boolean; onNext: () => void; onFinish?: () => void }) {
+export function NextButton({
+  index,
+  onPrev,
+  answered,
+  isLast,
+  onNext,
+  onFinish,
+}: {
+  index: number;
+  onPrev: () => void;
+  answered: boolean;
+  isLast: boolean;
+  onNext: () => void;
+  onFinish?: () => void;
+}) {
   return (
     <div className="next-row">
+      <button className="btn quiet" disabled={index === 0} onClick={onPrev}>
+        ← Prev round
+      </button>
       <button className="btn primary" disabled={!answered} onClick={isLast ? onFinish : onNext}>
-        {isLast ? 'Finish this station' : 'Next round'}
+        {isLast ? 'Finish this station' : 'Next round →'}
       </button>
     </div>
   );

@@ -109,7 +109,7 @@ export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
           <strong>{ex.name}</strong>: {ex.steps.map((s) => midiName(EXPLORE_ROOT + s)).join(' + ')}
           {ex.steps.length === 2 ? `, ${ex.steps[1]} piano steps apart.` : ', the 1st, 3rd and 5th notes of the C major scale.'}
         </p>
-        <WavePlot tag={ex.steps.length === 3 ? 'The three notes' : 'The two notes'} traces={exTraces} duration={WINDOW} yMax={1.05} height={100} label="The individual notes" />
+        <WavePlot tag={ex.steps.length === 3 ? 'The three notes' : 'The two notes'} traces={exTraces} duration={WINDOW} yMax={1.7} height={130} label="The individual notes" />
         <WavePlot
           tag="Added together"
           traces={[{ fn: (t: number) => exTraces.reduce((sum, tr) => sum + tr.fn(t), 0), color: 'var(--ink)', width: 2.5 }]}
@@ -169,7 +169,7 @@ export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
               </Feedback>
             )}
           </FeedbackSlot>
-          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

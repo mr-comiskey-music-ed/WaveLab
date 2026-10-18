@@ -11,11 +11,11 @@ export interface DawLane {
 
 export const DRUM_HZ = 200; // a snare's main tone
 
-/** One drum hit as one mic hears it: a quick attack and a short ring. */
-export function hit(tSec: number) {
+/** One note or hit as one mic hears it: a quick attack and a ring that fades. */
+export function hit(tSec: number, freq = DRUM_HZ, decayMs = 9) {
   if (tSec < 0) return 0;
-  const env = (1 - Math.exp(-tSec / 0.0003)) * Math.exp(-tSec / 0.009);
-  return env * Math.sin(2 * Math.PI * DRUM_HZ * tSec);
+  const env = (1 - Math.exp(-tSec / 0.0006)) * Math.exp(-tSec / (decayMs / 1000));
+  return env * Math.sin(2 * Math.PI * freq * tSec);
 }
 
 const C = { bg: '#f4f6fa', lane: '#ffffff', grid: '#e3e8f0', text: '#4a5874', ink: '#17233a' };
@@ -29,7 +29,7 @@ function resolve(c: string) {
  * A simple DAW-style view: each mic is a track with an audio region,
  * plus a mix track showing what you hear when they're added together.
  */
-export function DawView({ lanes, windowMs = 20, label }: { lanes: DawLane[]; windowMs?: number; label: string }) {
+export function DawView({ lanes, windowMs = 20, label, freq = DRUM_HZ, decayMs = 9 }: { lanes: DawLane[]; windowMs?: number; label: string; freq?: number; decayMs?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const LANE_H = 58;
   const RULER = 20;
@@ -55,14 +55,15 @@ export function DawView({ lanes, windowMs = 20, label }: { lanes: DawLane[]; win
       ctx.fillStyle = C.text;
       ctx.textBaseline = 'middle';
       ctx.fillText('time', 8, RULER / 2);
-      for (let ms = 0; ms <= windowMs; ms += 2) {
+      const tick = windowMs > 30 ? 5 : 2;
+      for (let ms = 0; ms <= windowMs; ms += tick) {
         const x = Math.round(xOf(ms)) + 0.5;
         ctx.strokeStyle = C.grid;
         ctx.beginPath();
         ctx.moveTo(x, RULER);
         ctx.lineTo(x, H);
         ctx.stroke();
-        if (ms % 4 === 0) {
+        if (ms % (tick * 2) === 0) {
           const t = `${ms} ms`;
           const tw = ctx.measureText(t).width;
           ctx.fillText(t, Math.min(x - tw / 2, W - tw - 2), RULER / 2);
@@ -120,8 +121,8 @@ export function DawView({ lanes, windowMs = 20, label }: { lanes: DawLane[]; win
         for (let k = 0; k <= steps; k++) {
           const ms = (k / steps) * windowMs;
           const v = lane.mix
-            ? lanes.reduce((sum, l) => sum + (l.flip ? -1 : 1) * hit((ms - l.startMs) / 1000), 0)
-            : (lane.flip ? -1 : 1) * hit((ms - lane.startMs) / 1000);
+            ? lanes.reduce((sum, l) => sum + (l.flip ? -1 : 1) * hit((ms - l.startMs) / 1000, freq, decayMs), 0)
+            : (lane.flip ? -1 : 1) * hit((ms - lane.startMs) / 1000, freq, decayMs);
           const x = xOf(ms);
           const y = mid - v * amp;
           if (k === 0) ctx.moveTo(x, y);
@@ -134,7 +135,7 @@ export function DawView({ lanes, windowMs = 20, label }: { lanes: DawLane[]; win
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [lanes, windowMs, H]);
+  }, [lanes, windowMs, H, freq, decayMs]);
 
   return <canvas ref={ref} className="daw" style={{ height: H }} role="img" aria-label={label} />;
 }

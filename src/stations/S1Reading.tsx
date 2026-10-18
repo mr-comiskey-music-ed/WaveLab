@@ -48,7 +48,7 @@ function makeCompare(kind: 'louder' | 'higher'): Q {
 
 function makeHz(): Q {
   const hz = randInt(2, 6);
-  const wrong = shuffle([hz - 1, hz + 1, hz * 2, hz + 2].filter((x) => x > 0 && x !== hz)).slice(0, 3);
+  const wrong = shuffle([...new Set([hz - 1, hz + 1, hz * 2, hz + 2, hz + 3])].filter((x) => x > 0 && x !== hz)).slice(0, 3);
   return { kind: 'hz', tone: { amp: rand(0.6, 1), hz }, options: shuffle([hz, ...wrong]) };
 }
 
@@ -236,7 +236,7 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
               {q.kind === 'louder' || q.kind === 'higher' || q.kind === 'pitch' ? 'Hear A, then B again' : 'Hear it again'}
             </PlayButton>
           </div>
-          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

@@ -258,9 +258,7 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
           {q.kind === 'cone' && qFn ? (
             <>
               <p className="question">At the moment marked by the dot, where is the speaker cone?</p>
-              <ConeGraph>
-                <WavePlot traces={[{ fn: (t) => 0.9 * qFn(t), color: 'var(--trace-a)' }]} duration={2} height={130} markers={[{ t: q.x, color: 'var(--trace-b)' }]} label="Speaker position over time, with one moment marked" />
-              </ConeGraph>
+              <WavePlot traces={[{ fn: (t) => 0.9 * qFn(t), color: 'var(--trace-a)' }]} duration={2} height={130} markers={[{ t: q.x, color: 'var(--trace-b)' }]} label="Speaker position over time, with one moment marked" />
               <Choices options={CONE_OPTIONS} correct={correct} picked={choice} onPick={choose} columns={3} />
             </>
           ) : q.kind === 'idea' ? (
@@ -270,7 +268,7 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
             </>
           ) : null}
           <FeedbackSlot>{choice && <Feedback ok={choice === correct}>{explain}</Feedback>}</FeedbackSlot>
-          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

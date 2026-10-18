@@ -39,8 +39,8 @@ const WHICH_OPTIONS = [
 const whichAnswer = (w: WaveType) => (w === 'sawtooth' ? 'all' : w === 'sine' ? 'none' : 'odd');
 
 function makeMath(): Q {
-  const root = pick([50, 100, 110, 150, 200, 220]);
-  const n = randInt(2, 6);
+  const root = pick([50, 100, 110, 200, 220]);
+  const n = randInt(2, 4); // 4th harmonic at most
   const right = root * n;
   const wrong = shuffle([root + n, root * (n + 1), right / 2, root * n * 2, root + 100 * n].filter((x) => x !== right && x > 0)).slice(0, 3);
   return { kind: 'math', root, n, options: shuffle([right, ...wrong]) };
@@ -182,7 +182,7 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
               </PlayButton>
             </div>
           )}
-          <NextButton answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>
