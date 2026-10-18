@@ -171,7 +171,8 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const quality = () => {
     switch (rd.kind) {
       case 'bass':
-        return 1 - Math.abs(bassOffset) / 2.5;
+        // within half a millisecond is invisible on the screen and inaudible, so it counts as lined up
+        return 1 - Math.max(0, Math.abs(bassOffset) - 0.5) / 2.5;
       case 'snare':
         return snareFlip ? 1 : 0;
       case 'overhead':
@@ -254,7 +255,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
                 Oops: we recorded the bass two ways at once, plugged straight into the interface (a DI) and with a mic on the bass amp, but forgot to check their phase. The amp mic’s copy arrives late.
                 Fix it in post: slide the amp mic’s region until the two line up and the low end sounds big.
               </p>
-              <DawView lanes={bassLanes} windowMs={40} freq={BASS_HZ} decayMs={30} label="The bass DI and amp mic tracks and their mix" />
+              <DawView lanes={bassLanes} windowMs={30} freq={BASS_HZ} decayMs={30} label="The bass DI and amp mic tracks and their mix" />
               <label className="slider wide">
                 <span>Slide the amp mic region (earlier ← → later)</span>
                 <input type="range" min={-8} max={3} step={0.1} value={nudge} disabled={locked} onChange={(e) => setNudge(+e.target.value)} />
