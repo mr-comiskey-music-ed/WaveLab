@@ -258,6 +258,7 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
       ) : (
         <Section title="Check yourself" note="One try per round.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
+          <div className="q-stage">
           {q.kind === 'cone' && qFn ? (
             <>
               <p className="question">At the moment marked by the dot, where is the speaker cone?</p>
@@ -270,6 +271,7 @@ export function S2Sound({ info, done, onComplete, onNext }: StationProps) {
               <Choices options={q.order.map((i) => ({ id: String(i), label: IDEAS[q.idea].options[i] }))} correct="0" picked={choice} onPick={choose} columns={1} />
             </>
           ) : null}
+          </div>
           <FeedbackSlot>{choice && <Feedback ok={choice === correct}>{explain}</Feedback>}</FeedbackSlot>
           <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>

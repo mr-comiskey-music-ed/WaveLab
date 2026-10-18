@@ -1113,7 +1113,7 @@ kbd {
 }
 
 .feedback-slot {
-  min-height: 92px;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
 }
@@ -1504,4 +1504,12 @@ kbd {
   letter-spacing: 0.08em;
   color: #fff3d6;
   font-variant-numeric: tabular-nums;
+}
+
+/* Question + answers get one fixed-height stage so rounds of different kinds never resize the page. */
+.q-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 340px;
 }
