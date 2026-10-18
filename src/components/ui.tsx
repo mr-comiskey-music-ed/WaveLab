@@ -158,8 +158,8 @@ export function Feedback({ ok, children }: { ok: boolean | 'partial'; children: 
 }
 
 /** Keeps the space for feedback reserved so the page doesn't jump when an answer appears. */
-export function FeedbackSlot({ children, waiting = 'Your answer and an explanation will show up here.' }: { children?: ReactNode; waiting?: string }) {
-  return <div className="feedback-slot">{children || <div className="feedback waiting">{waiting}</div>}</div>;
+export function FeedbackSlot({ children, waiting = 'Your answer and an explanation will show up here.', tall }: { children?: ReactNode; waiting?: string; tall?: boolean }) {
+  return <div className={`feedback-slot${tall ? ' tall' : ''}`}>{children || <div className="feedback waiting">{waiting}</div>}</div>;
 }
 
 export function NextButton({

@@ -157,6 +157,7 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
         >
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
 
+<div className="q-stage stage-read">
           {q.kind === 'amp' && (
             <>
               <p className="question">What is the amplitude of this wave?</p>
@@ -236,7 +237,8 @@ export function S1Reading({ info, done, onComplete, onNext }: StationProps) {
               {q.kind === 'louder' || q.kind === 'higher' || q.kind === 'pitch' ? 'Hear A, then B again' : 'Hear it again'}
             </PlayButton>
           </div>
-          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+</div>
+                    <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

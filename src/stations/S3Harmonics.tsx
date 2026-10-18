@@ -217,6 +217,7 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
         <Section title="Check yourself" note="One try per round. Ear rounds use a different note each time, so listen for the tone color, not the pitch.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
 
+<div className="q-stage stage-harm">
           {q.kind === 'ear' && (
             <>
               <p className="question">Listen. Which waveform is this?</p>
@@ -280,7 +281,8 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
               </PlayButton>
             </div>
           )}
-          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+</div>
+                    <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
         </Section>
       )}
     </div>

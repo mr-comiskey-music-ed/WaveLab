@@ -275,6 +275,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   </>
                 )}
               </p>
+              <div className="match-slot">
               {!locked && (
                 <div className="btn-row">
                   <button className="btn primary" onClick={lockIn}>
@@ -307,6 +308,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   </div>
                 </>
               )}
+              </div>
             </>
           )}
 

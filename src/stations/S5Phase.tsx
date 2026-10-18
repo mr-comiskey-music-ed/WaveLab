@@ -298,7 +298,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
               Lock it in
             </button>
           </div>
-          <FeedbackSlot waiting="When you lock it in, you'll see how you did here.">{locked && feedback()}</FeedbackSlot>
+          <FeedbackSlot tall waiting="When you lock it in, you'll see how you did here.">{locked && feedback()}</FeedbackSlot>
           <NextButton
             index={r.index}
             onPrev={() => {

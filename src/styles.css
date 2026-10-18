@@ -1513,3 +1513,8 @@ kbd {
   gap: 10px;
   min-height: 340px;
 }
+
+.feedback-slot.tall { min-height: 160px; }
+.match-slot { min-height: 320px; display: flex; flex-direction: column; gap: 10px; }
+.q-stage.stage-read { min-height: 560px; }
+.q-stage.stage-harm { min-height: 640px; }
