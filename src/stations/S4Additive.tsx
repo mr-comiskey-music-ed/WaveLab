@@ -318,7 +318,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
         title="Playground: the drawbar organ"
         note={
           <>
-            Fun fact: a Hammond organ is additive synthesis you can play. Each drawbar adds one sine-wave harmonic, just like the faders above. Pull a bar down to make it louder. The names (16′,
+            Fun fact: a Hammond organ (the sound of the Black church and gospel music, and all over blues, R&B, soul, jazz and rock) is additive synthesis you can play. Each drawbar adds one sine-wave harmonic, just like the faders above. Pull a bar down to make it louder. The names (16′,
             8′, 4′...) come from pipe-organ pipe lengths: 8′ is the note you play, 4′ is an octave up, 16′ an octave down. The Leslie is the spinning speaker that gives the organ its swirl.
             Nothing here is graded, so play!
           </>
