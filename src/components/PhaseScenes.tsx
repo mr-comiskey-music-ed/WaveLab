@@ -41,17 +41,17 @@ export function SnareSideView({ flipped }: { flipped: boolean }) {
   );
 }
 
-/** Noise-cancelling headphones on a train: an outside mic hears the rumble, the speaker plays the opposite. */
+/** Noise-cancelling headphones on a bus: an outside mic hears the rumble, the speaker plays the opposite. */
 export function HeadphoneScene() {
   return (
-    <svg className="scene" viewBox="0 0 320 150" role="img" aria-label="A person wearing noise-cancelling headphones on a train">
+    <svg className="scene" viewBox="0 0 320 150" role="img" aria-label="A person wearing noise-cancelling headphones on a bus">
       <rect x="0" y="0" width="320" height="150" rx="8" fill="#f7f9fc" />
-      {/* train window strip */}
+      {/* bus window strip */}
       <rect x="10" y="12" width="300" height="40" rx="6" fill="#dfe8f5" stroke="#b9c5d8" />
       {[30, 100, 170, 240].map((x) => (
         <rect key={x} x={x} y="18" width="56" height="28" rx="4" fill="#ffffff" stroke="#b9c5d8" />
       ))}
-      <text x="160" y="70" textAnchor="middle" fontSize="11" fill="#4a5874">rumble of the train</text>
+      <text x="160" y="70" textAnchor="middle" fontSize="11" fill="#4a5874">rumble of the bus</text>
       <path d="M40 82 q10 -8 20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--trace-a)" strokeWidth="2.5" />
       {/* head + headphones */}
       <circle cx="225" cy="105" r="26" fill="#e8edf5" stroke="#8f9cb3" />

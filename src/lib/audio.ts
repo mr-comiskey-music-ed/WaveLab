@@ -21,6 +21,18 @@ export interface ToneSpec {
   delay?: number;
 }
 
+export interface ClipPart {
+  url: string;
+  delayMs?: number;
+  /** 1 = as recorded, -1 = polarity flipped. */
+  gain?: number;
+}
+export interface ClipPlayer {
+  set: (index: number, change: { delayMs?: number; gain?: number }) => void;
+  stop: () => void;
+  ready: Promise<void>;
+}
+
 type Voice = { osc: OscillatorNode; gain: GainNode };
 
 /**
@@ -280,7 +292,80 @@ class AudioEngine {
     return this.drones.has(id);
   }
 
+  // ---------- recorded clips (the phase rounds) ----------
+  private clipCache = new Map<string, Promise<AudioBuffer>>();
+  private liveClips = new Set<ClipPlayer>();
+
+  loadClip(url: string): Promise<AudioBuffer> {
+    let p = this.clipCache.get(url);
+    if (!p) {
+      const ctx = this.ensure();
+      p = fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error(`Could not load ${url}`);
+          return r.arrayBuffer();
+        })
+        .then((b) => ctx.decodeAudioData(b));
+      p.catch(() => this.clipCache.delete(url));
+      this.clipCache.set(url, p);
+    }
+    return p;
+  }
+
+  /**
+   * Loops several recordings together, all starting on the same sample. Each part can be
+   * delayed (milliseconds) and scaled (a negative gain flips its polarity), live.
+   * The clips are mixed in Web Audio, so what students hear is the real phase interaction.
+   */
+  playClips(parts: ClipPart[]): ClipPlayer {
+    const ctx = this.ensure();
+    let stopped = false;
+    const nodes: { src: AudioBufferSourceNode; gain: GainNode; delay: DelayNode }[] = [];
+    const player: ClipPlayer = {
+      set: (i, p) => {
+        const n = nodes[i];
+        if (!n) return;
+        const t = ctx.currentTime;
+        if (p.gain !== undefined) n.gain.gain.setTargetAtTime(p.gain, t, 0.01);
+        if (p.delayMs !== undefined) n.delay.delayTime.setTargetAtTime(Math.max(0, p.delayMs) / 1000, t, 0.01);
+      },
+      stop: () => {
+        stopped = true;
+        this.liveClips.delete(player);
+        const t = ctx.currentTime;
+        nodes.forEach((n) => {
+          try {
+            n.gain.gain.cancelScheduledValues(t);
+            n.gain.gain.setTargetAtTime(0, t, 0.02);
+            n.src.stop(t + 0.15);
+          } catch {
+            /* not started yet */
+          }
+        });
+      },
+      ready: Promise.all(parts.map((p) => this.loadClip(p.url))).then((bufs) => {
+        if (stopped) return;
+        const start = ctx.currentTime + 0.06;
+        bufs.forEach((buf, i) => {
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+          const delay = ctx.createDelay(0.1);
+          delay.delayTime.value = Math.max(0, parts[i].delayMs ?? 0) / 1000;
+          const gain = ctx.createGain();
+          gain.gain.value = parts[i].gain ?? 1;
+          src.connect(delay).connect(gain).connect(this.master!);
+          src.start(start);
+          nodes.push({ src, gain, delay });
+        });
+      }),
+    };
+    this.liveClips.add(player);
+    return player;
+  }
+
   stopAll() {
+    this.liveClips.forEach((c) => c.stop());
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     for (const v of this.voices) {

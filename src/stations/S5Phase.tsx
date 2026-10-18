@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { audio } from '../lib/audio';
+import { audio, ClipPlayer } from '../lib/audio';
 import { rand } from '../lib/waves';
 import { useSaved } from '../lib/persist';
 import { mcScore, skillScore } from '../lib/stations';
@@ -12,21 +12,22 @@ import type { StationProps } from './types';
 
 const SPEED_OF_SOUND = 34.3; // cm per ms
 const BASS_HZ = 82.4; // low E on a bass
-const TRAIN_HZ = 55;
+const BUS_HZ = 60; // the idle rumble in the drawing (the real recording has many more frequencies)
+const CLIP = (name: string) => `./audio/${name}.wav`;
 const RAD = Math.PI / 180;
 
 type Round =
   | { kind: 'bass'; base: number }
   | { kind: 'snare' }
   | { kind: 'overhead'; leftX: number; startX: number }
-  | { kind: 'train'; start: number };
+  | { kind: 'train'; delayMs: number };
 
 function makeRounds(): Round[] {
   return [
     { kind: 'bass', base: rand(3.5, 6) },
     { kind: 'snare' },
     { kind: 'overhead', leftX: Math.round(rand(45, 85)), startX: Math.round(rand(220, 290)) },
-    { kind: 'train', start: Math.round(rand(20, 120)) },
+    { kind: 'train', delayMs: Math.round(rand(1.5, 4.5) * 20) / 20 },
   ];
 }
 
@@ -34,7 +35,7 @@ const TITLES: Record<Round['kind'], string> = {
   bass: 'Bass: line up the DI and the amp mic',
   snare: 'Snare: top and bottom mics',
   overhead: 'Drum overheads: place the mics',
-  train: 'Noise-cancelling headphones',
+  train: 'Noise-cancelling headphones on a bus',
 };
 
 /** Repeats a sound every `everyMs`, reading the latest settings each time. */
@@ -51,13 +52,6 @@ function useLoop(play: () => void, everyMs: number) {
   return [on, () => setOn((v) => !v), setOn] as const;
 }
 
-/** Two copies of a sound, the second `offsetMs` later and maybe flipped. Web Audio really adds them, so you hear the phase. */
-function playPair(freq: number, harmonics: number[], offsetMs: number, flipped: boolean, duration: number) {
-  const spec = { freq, harmonics, level: 0.55, normalize: 'none' as const, duration, attack: 0.003, release: duration * 0.9 };
-  audio.play({ ...spec, delay: Math.max(0, -offsetMs) / 1000 });
-  audio.play({ ...spec, delay: Math.max(0, offsetMs) / 1000, phases: flipped ? harmonics.map(() => Math.PI) : undefined });
-}
-
 const POLARITY_TEXT =
   'Most mixers, audio interfaces and DAWs have a polarity button, usually marked Ø. It flips a signal upside down, so every push becomes a pull and every pull becomes a push.';
 
@@ -70,13 +64,14 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const [exOn, exToggle] = useLoop(() => audio.play({ freq: 220, harmonics: [1], level: 0.6 * exLevel + 0.001, normalize: 'none', duration: 0.6 }), 700);
 
   // ---------- challenge ----------
-  const [rounds] = useSaved('phase2:rounds', makeRounds);
-  const [nudge, setNudge] = useSaved<number>('phase2:nudge', 0);
-  const [snareFlip, setSnareFlip] = useSaved<boolean>('phase2:snareFlip', false);
-  const [micX, setMicX] = useSaved<number>('phase2:micX', () => (rounds[2] as { startX: number }).startX);
-  const [anti, setAnti] = useSaved<number>('phase2:anti', () => (rounds[3] as { start: number }).start);
-  const [summary, setSummary] = useSaved('phase2:summary', false);
-  const r = useRounds('phase2', rounds.length, done, onComplete);
+  const [rounds] = useSaved('phase3:rounds', makeRounds);
+  const [nudge, setNudge] = useSaved<number>('phase3:nudge', 0);
+  const [snareFlip, setSnareFlip] = useSaved<boolean>('phase3:snareFlip', false);
+  const [micX, setMicX] = useSaved<number>('phase3:micX', () => (rounds[2] as { startX: number }).startX);
+  const [busDelay, setBusDelay] = useSaved<number>('phase3:busDelay', () => (rounds[3] as { delayMs: number }).delayMs);
+  const [busFlip, setBusFlip] = useSaved<boolean>('phase3:busFlip', false);
+  const [summary, setSummary] = useSaved('phase3:summary', false);
+  const r = useRounds('phase3', rounds.length, done, onComplete);
   const rd = rounds[r.index];
   const locked = r.answered;
 
@@ -98,17 +93,56 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const ohOffsetMs = (dR - dL) / SPEED_OF_SOUND;
   const ohShift = 2 * Math.PI * DRUM_HZ * (ohOffsetMs / 1000);
 
-  // Round 4: train + headphone anti-noise
-  const trainWave = (t: number, shift = 0) => 0.6 * Math.sin(2 * Math.PI * TRAIN_HZ * t + shift) + 0.3 * Math.sin(2 * Math.PI * 2 * TRAIN_HZ * t + 2 * shift);
-  const antiShift = anti * RAD;
-  const trainLeft = Math.abs(Math.cos(antiShift / 2));
+  // Round 4: bus hum + headphone anti-noise
+  const busWave = (t: number, shift = 0) => 0.6 * Math.sin(2 * Math.PI * BUS_HZ * t + shift) + 0.3 * Math.sin(2 * Math.PI * 2 * BUS_HZ * t + 2 * shift);
+  const busShift = -2 * Math.PI * BUS_HZ * (busDelay / 1000); // a delay shows up as a phase lag
+  const busSign = busFlip ? -1 : 1;
 
-  const [on, toggle, setOn] = useLoop(() => {
-    if (rd.kind === 'bass') playPair(BASS_HZ, [1, 0.5, 0.3], bassOffset, false, 0.7);
-    if (rd.kind === 'snare') playPair(DRUM_HZ, [1, 0.4, 0.2], 0, !snareFlip, 0.32);
-    if (rd.kind === 'overhead') playPair(DRUM_HZ, [1, 0.4, 0.2], ohOffsetMs, false, 0.32);
-    if (rd.kind === 'train') audio.play({ freq: TRAIN_HZ * 2, harmonics: [1, 0.4], level: 0.8 * trainLeft + 0.001, normalize: 'none', duration: 0.95, attack: 0.05, release: 0.05 });
-  }, rd.kind === 'bass' ? 900 : rd.kind === 'train' ? 950 : 650);
+  // The real recordings, looped and mixed live. Sliders and buttons change the mix while it plays.
+  const [on, setOn] = useState(false);
+  const player = useRef<ClipPlayer | null>(null);
+  const parts = (): { url: string; delayMs: number; gain: number }[] => {
+    switch (rd.kind) {
+      case 'bass':
+        return [
+          { url: CLIP('bass-di'), delayMs: Math.max(0, -bassOffset), gain: 0.9 },
+          { url: CLIP('bass-mic'), delayMs: Math.max(0, bassOffset), gain: 0.9 },
+        ];
+      case 'snare':
+        return [
+          { url: CLIP('snare-top'), delayMs: 0, gain: 0.9 },
+          { url: CLIP('snare-bottom'), delayMs: 0, gain: snareFlip ? 0.9 : -0.9 },
+        ];
+      case 'overhead':
+        return [
+          { url: CLIP('oh-left'), delayMs: Math.max(0, -ohOffsetMs), gain: 0.9 },
+          { url: CLIP('oh-right'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 },
+        ];
+      case 'train':
+        return [
+          { url: CLIP('bus-hum'), delayMs: 0, gain: 0.9 },
+          { url: CLIP('bus-hum-low'), delayMs: busDelay, gain: busSign * 0.9 },
+        ];
+    }
+  };
+  const partsRef = useRef(parts);
+  partsRef.current = parts;
+  useEffect(() => {
+    if (!on) return;
+    const p = audio.playClips(partsRef.current());
+    player.current = p;
+    p.ready.catch(() => setOn(false));
+    return () => {
+      p.stop();
+      player.current = null;
+    };
+  }, [on, rd.kind]);
+  const live = JSON.stringify(parts().map((x) => [x.delayMs, x.gain]));
+  useEffect(() => {
+    parts().forEach((x, i) => player.current?.set(i, { delayMs: x.delayMs, gain: x.gain }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+  const toggle = () => setOn((v) => !v);
 
   const quality = () => {
     switch (rd.kind) {
@@ -119,7 +153,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       case 'overhead':
         return 1 - Math.abs(dR - dL) / 12;
       case 'train':
-        return 1 - trainLeft / 0.35;
+        return busFlip ? 1 - busDelay / 1.2 : 0;
     }
   };
 
@@ -132,12 +166,14 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
     const s = r.current ?? 50;
     const ok = s >= 95 ? true : s >= 75 ? 'partial' : false;
     const text = {
-      bass: 'The DI signal arrives instantly, but the amp mic hears the sound a few milliseconds later, after it travels through the amp and the air. Lining the regions up in the DAW puts them back in phase, so the low end gets bigger instead of thinner.',
+      bass: 'The DI signal arrives instantly, but the amp mic hears the sound a few milliseconds later, after it travels through the amp and the air. Lining the regions up in the DAW puts them back in phase, so the low end gets bigger instead of thinner. (The mix is the real DI and amp mic from a session.)',
       snare: snareFlip
         ? 'Exactly. The two mics face opposite directions, so one hears a push while the other hears a pull. Flipping the bottom mic’s polarity makes them push together, and the snare gets its body back.'
         : 'The bottom mic needed its polarity flipped. Because the mics face opposite directions, one hears a push while the other hears a pull. The Ø button turns that around so they add up.',
       overhead: `When both overheads are the same distance from the snare, its sound reaches them at the same moment and they stay in phase. Yours ended up ${Math.round(Math.abs(dR - dL))} cm different. Engineers often check this with a tape measure or a mic cable.`,
-      train: 'At about 180°, the headphones play the train’s exact opposite, so the two cancel out. That’s phase cancellation used on purpose. Real headphones do this best for low, steady sounds like engines and trains.',
+      train: busFlip
+        ? 'The headphones play the bus’s exact opposite, and the closer their timing, the more the deep rumble cancels. That’s phase cancellation used on purpose. The hiss and rattle still come through: they’re high and constantly changing, too fast for the headphones to copy and flip in time. Noise cancelling works best on low, steady sounds like engines.'
+        : 'The headphones also needed their polarity flipped. Without the Ø flip, they add a second copy of the rumble instead of cancelling it. Flip it, then fine-tune the timing, and the engine hum drops away.',
     }[rd.kind];
     return <Feedback ok={ok}>{text}</Feedback>;
   };
@@ -184,7 +220,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       {summary ? (
         <StationDone scores={r.scores} labels={rounds.map((x) => TITLES[x.kind])} kinds={rounds.map((x) => (x.kind === 'snare' ? 'mc' : 'skill'))} onNext={onNext} />
       ) : (
-        <Section title="Be the engineer" note="Four real situations where phase matters. Use your eyes, your ears, or both, then lock it in.">
+        <Section title="Be the engineer" note="Four real situations where phase matters, using real recordings. Headphones help. Use your eyes, your ears, or both, then lock it in.">
           <RoundBar index={r.index} total={rounds.length} scores={r.scores} />
           <h4 className="round-title">{TITLES[rd.kind]}</h4>
 
@@ -257,43 +293,49 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
           {rd.kind === 'train' && (
             <>
               <p className="question">
-                You’re engineering noise-cancelling headphones. A tiny mic on the outside hears the rumble of the train, and the headphone speaker plays that same sound back with its phase shifted.
-                Set the phase so the headphones cancel out the train.
+                You’re riding a bus with noise-cancelling headphones. A tiny mic on the outside hears the engine’s rumble, and the headphones play it back to cancel it. Two things have to be
+                right: the copy must be flipped (Ø), and the electronics add a little delay that you can tune out. Flip the polarity and slide the delay until the rumble disappears.
               </p>
               <HeadphoneScene />
               <WavePlot
-                tag="Train (blue) + headphones (pink)"
+                tag="Bus rumble (blue) + headphones (pink)"
                 traces={[
-                  { fn: (t) => trainWave(t), color: 'var(--trace-a)' },
-                  { fn: (t) => trainWave(t, antiShift), color: 'var(--trace-b)', width: 2 },
+                  { fn: (t) => busWave(t), color: 'var(--trace-a)' },
+                  { fn: (t) => busSign * busWave(t, busShift), color: 'var(--trace-b)', width: 2 },
                 ]}
                 duration={0.04}
                 yMax={1.8}
                 height={110}
-                label="The train sound and the headphone sound"
+                label="A drawing of the bus rumble and the headphone sound"
               />
               <WavePlot
-                tag="What you hear"
-                traces={[{ fn: (t) => trainWave(t) + trainWave(t, antiShift), color: 'var(--ink)', width: 3 }]}
+                tag="What you hear (the low rumble)"
+                traces={[{ fn: (t) => busWave(t) + busSign * busWave(t, busShift), color: 'var(--ink)', width: 3 }]}
                 duration={0.04}
                 yMax={1.8}
                 height={110}
                 label="What reaches your ear"
               />
               <label className="slider wide">
-                <span>Phase of the headphone sound: {anti}°</span>
-                <input type="range" min={0} max={360} step={5} value={anti} disabled={locked} onChange={(e) => setAnti(+e.target.value)} />
+                <span>Headphone delay: {busDelay.toFixed(2)} ms</span>
+                <input type="range" min={0} max={5} step={0.05} value={busDelay} disabled={locked} onChange={(e) => setBusDelay(+e.target.value)} />
               </label>
+              <p className="hint">The drawing shows just the rumble’s two lowest tones. The recording has many more, and you’ll hear the hiss no matter what: headphones can’t cancel that.</p>
             </>
           )}
 
           <div className="btn-row">
+            {rd.kind === 'train' && (
+              <button className={`btn ${busFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={busFlip} disabled={locked} onClick={() => setBusFlip(!busFlip)}>
+                Ø Headphone polarity: {busFlip ? 'flipped' : 'normal'}
+              </button>
+            )}
             {rd.kind === 'snare' && (
               <button className={`btn ${snareFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={snareFlip} disabled={locked} onClick={() => setSnareFlip(!snareFlip)}>
                 Ø Bottom mic polarity: {snareFlip ? 'flipped' : 'normal'}
               </button>
             )}
-            <LoopButton on={on} onToggle={toggle} playLabel={{ bass: 'Play the bass', snare: 'Play the snare', overhead: 'Play the overheads', train: 'Play the train' }[rd.kind]} />
+            <LoopButton on={on} onToggle={toggle} playLabel={{ bass: 'Play the bass', snare: 'Play the snare', overhead: 'Play the overheads', train: 'Play the bus' }[rd.kind]} />
             <button className="btn primary" disabled={locked} onClick={lockIn}>
               Lock it in
             </button>
