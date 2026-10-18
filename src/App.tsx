@@ -52,11 +52,30 @@ const setFlag = (k: string) => {
 
 type View = { kind: 'station'; id: StationId } | { kind: 'finish' } | { kind: 'teacher' };
 
+// Logo: a slow pink wave, a fast blue wave, and the W they make together.
+function wavePath(f: (t: number) => number, cy: number, amp: number) {
+  const n = 64;
+  let d = '';
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    d += `${i ? 'L' : 'M'}${(10 + 44 * t).toFixed(1)} ${(cy - amp * f(t)).toFixed(1)}`;
+  }
+  return d;
+}
+const logoBlue = (t: number) => Math.cos(4 * Math.PI * t);
+const logoPink = (t: number) => 0.5 * Math.cos(2 * Math.PI * t);
+const LOGO_PINK = wavePath(logoPink, 14, 10);
+const LOGO_BLUE = wavePath(logoBlue, 54, 7);
+const LOGO_W = wavePath((t) => logoBlue(t) + logoPink(t), 35.25, 13);
+
 function Logo() {
+  const stroke = { fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
   return (
-    <svg className="logo" viewBox="0 0 40 24" aria-hidden="true">
-      <path d="M1 12 C 5 1, 9 1, 13 12 S 21 23, 25 12 S 33 1, 39 12" fill="none" stroke="var(--trace-a)" strokeWidth="3" strokeLinecap="round" />
-      <path d="M1 12 C 4 6, 7 6, 10 12 S 16 18, 19 12 S 25 6, 28 12 S 34 18, 39 12" fill="none" stroke="var(--trace-b)" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
+    <svg className="logo" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.5" fill="#eef3fb" stroke="#17233a" strokeOpacity="0.18" strokeWidth="1.5" />
+      <path d={LOGO_PINK} stroke="#e91e63" strokeWidth="4.5" {...stroke} />
+      <path d={LOGO_BLUE} stroke="#0380f4" strokeWidth="4.5" {...stroke} />
+      <path d={LOGO_W} stroke="#17233a" strokeWidth="6.5" opacity="0.9" {...stroke} />
     </svg>
   );
 }
