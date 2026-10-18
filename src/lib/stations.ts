@@ -10,7 +10,10 @@ export interface StationInfo {
   title: string;
   /** The section of the Waveforms site students read before this station. */
   section: string;
-  /** Text on the Waveforms site that marks where this section starts (for jump links). */
+  /**
+   * A sentence a little below the section's heading. Chrome centres the jump target, and the site's
+   * big graphic covers the bottom half, so aiming slightly lower leaves the heading visible above it.
+   */
   jumpText: string;
   /** What to type into Ctrl+F to find the section. */
   findText: string;
@@ -26,7 +29,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Reading',
     title: 'Reading waveforms',
     section: '1. Reading Waveforms (Time, Displacement, Amplitude and Frequency)',
-    jumpText: '1. Reading Waveforms',
+    jumpText: "We're looking at a graph",
     findText: 'Reading Waveforms',
     goal: 'Read loudness and pitch straight off a graph, before you hear it.',
     auto: true,
@@ -36,7 +39,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Sound',
     title: 'How sound works',
     section: '2. How Sound Works',
-    jumpText: '2. How Sound Works',
+    jumpText: 'The air around us is filled with molecules',
     findText: 'How Sound Works',
     goal: 'Connect the line on the graph to a real speaker and real air molecules.',
     auto: true,
@@ -46,7 +49,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Harmonics',
     title: 'Harmonics',
     section: '3. Harmonics (The Triangle, Square and Sawtooth Waveforms)',
-    jumpText: '3. Harmonics',
+    jumpText: 'The shape of a waveform refers to',
     findText: '3. Harmonics',
     goal: 'Name the four basic waveforms by ear and by their harmonics, and work out harmonic frequencies.',
     auto: true,
@@ -56,7 +59,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Additive',
     title: 'Additive synthesis',
     section: '4. Additive Synthesis (the part before Phase)',
-    jumpText: '4. Additive Synthesis',
+    jumpText: 'To make sense of this',
     findText: 'Additive Synthesis',
     goal: 'Add waves point by point, then rebuild a sound from sine waves by ear.',
     auto: true,
@@ -66,7 +69,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Phase',
     title: 'Phase',
     section: '4. Additive Synthesis: Phase',
-    jumpText: 'Something counter-intuitive about waveform addition',
+    jumpText: 'Simply put, phase is',
     findText: 'counter-intuitive',
     goal: 'Hear phase cancellation between two mics and fix it the way an engineer would.',
     auto: true,
@@ -76,7 +79,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Chords',
     title: 'Chords',
     section: '4. Additive Synthesis: Chords',
-    jumpText: 'Another way to think of waveform addition',
+    jumpText: 'The difference is the scale',
     findText: 'Another way to think',
     goal: 'See a chord as waves added together, and recognise intervals by ear.',
     auto: true,
@@ -86,7 +89,7 @@ export const STATIONS: StationInfo[] = [
     short: 'Make',
     title: 'Make a sound',
     section: 'In Conclusion',
-    jumpText: 'In Conclusion',
+    jumpText: 'An audio wave is the vibration',
     findText: 'In Conclusion',
     goal: 'Design an original sound for a brief and explain it with harmonics.',
     auto: false,
@@ -95,7 +98,7 @@ export const STATIONS: StationInfo[] = [
 
 /** Link that opens the Waveforms site scrolled to a station's section (Chrome "jump to text"). */
 export function sectionLink(info: StationInfo) {
-  const text = encodeURIComponent(info.jumpText).replace(/-/g, '%2D');
+  const text = encodeURIComponent(info.jumpText).replace(/-/g, '%2D').replace(/'/g, '%27');
   // The query string forces a fresh load so the jump works even if the window is already open.
   return `${SITE_URL}?from=wavelab-${info.id}#:~:text=${text}`;
 }
