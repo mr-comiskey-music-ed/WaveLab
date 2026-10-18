@@ -34,10 +34,13 @@ function busRound(): Round {
  * the right mic is partly mixed with the left one (as if more of the direct snare reached both mics).
  * Try ?oh=0 (pure recording) up to ?oh=1 (same sound in both) in the address bar to compare.
  */
-const OH_BLEND = (() => {
-  const v = parseFloat(new URLSearchParams(location.search).get('oh') ?? '');
-  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.6;
-})();
+const blendFromUrl = (key: string, fallback: number) => {
+  const v = parseFloat(new URLSearchParams(location.search).get(key) ?? '');
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback;
+};
+const OH_BLEND = blendFromUrl('oh', 0.48);
+/** Same idea for the snare: the bottom mic is partly blended with the top, so a flipped polarity cancels more of the sound. Try ?sn=0 to 1. */
+const SN_BLEND = blendFromUrl('sn', 0.5);
 
 function makeRounds(): Round[] {
   return [
@@ -130,7 +133,8 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       case 'snare':
         return [
           { url: CLIP('snare-top'), delayMs: 0, gain: 0.9 },
-          { url: CLIP('snare-bottom'), delayMs: 0, gain: snareFlip ? 0.9 : -0.9 },
+          { url: CLIP('snare-bottom'), delayMs: 0, gain: (snareFlip ? 0.9 : -0.9) * (1 - SN_BLEND) },
+          { url: CLIP('snare-top'), delayMs: 0, gain: (snareFlip ? 0.9 : -0.9) * SN_BLEND },
         ];
       case 'overhead':
         return [
