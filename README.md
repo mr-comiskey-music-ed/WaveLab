@@ -13,7 +13,7 @@ Each station opens with a pop-up that jumps the Waveforms window to the right se
 | 3 | Harmonics | 3. Harmonics | name sine, triangle, square and saw by ear and by their harmonics |
 | 4 | Additive synthesis | 4. Additive Synthesis | rebuild a sound from sine harmonics by ear |
 | 5 | Phase | 4a. Phase | fix phase in 4 real cases: bass DI vs amp mic (DAW), snare polarity, overhead placement, noise-cancelling headphones |
-| 6 | Chords | 4b. Chords | see a chord as added waves; match intervals by ear on a piano |
+| 6 | Chords | 4b. Chords | see a chord as added waves; match each interval on a piano to its added waveform |
 | 7 | Make a sound | In Conclusion | design a sound for a brief and explain it with harmonics |
 
 Stations 1–6 are auto-graded: every student gets different random questions, one try per round.

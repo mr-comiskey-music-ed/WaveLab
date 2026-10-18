@@ -48,16 +48,8 @@ export const RIFFS: Riff[] = [
   { bpm: 152, beats: 8, mood: 'fast, driving, minor and chromatic', events: seq([0, 0, 12, 0, 1, 0, 13, 0, 0, 0, 12, 0, -1, 0, 11, 0], 0.5, 0.42) },
   // Alarm: repeated high-low beeps
   { bpm: 140, beats: 4, mood: 'urgent, repeated beeps', events: seq([12, 0, 12, 0, 12, 0, 12, 0], 0.25, 0.2) },
-  // R&B pad: rolled major-7th / 9th chords
-  {
-    bpm: 66,
-    beats: 8,
-    mood: 'slow, rolled 7th and 9th chords',
-    events: [
-      { at: 0, notes: [0, 4, 7, 11, 14], len: 3.9, roll: 0.07 },
-      { at: 4, notes: [-3, 0, 4, 7, 11], len: 3.9, roll: 0.07 },
-    ],
-  },
+  // Dream sequence: slow, floating, a bright lifted note (the #11) that never quite resolves
+  { bpm: 60, beats: 8, mood: 'slow and floating, with a dreamy lifted note', events: [...seq([0, 7, 11, 14, 18, 14, 11, 7], 1, 1.9), { at: 0, notes: [-12, -5], len: 7.5, roll: 0.1 }] },
   // Healing spell: whole-tone run, then a shimmering rolled chord
   {
     bpm: 96,
@@ -105,9 +97,12 @@ export function playCapstoneNote(c: Capstone) {
 }
 
 /**
- * Plays the brief's riff on a loop (or once). Reads the latest sound each time round,
- * so changes to the faders are heard on the next pass. `onNotes` lights up the piano.
+ * Plays the brief's riff on a loop (or once). Each note reads the latest sound just before it plays,
+ * so moving the faders (or the pitch and attack buttons) is heard on the very next note.
+ * `onNotes` lights up the piano.
  */
+const LOOKAHEAD_MS = 80;
+
 export function startRiff(getCap: () => Capstone, onNotes: (midi: number[]) => void, loop = true) {
   let stopped = false;
   const timers: number[] = [];
@@ -124,25 +119,33 @@ export function startRiff(getCap: () => Capstone, onNotes: (midi: number[]) => v
   };
   const cycle = () => {
     if (stopped) return;
-    const c = getCap();
-    const riff = riffFor(c.brief);
+    const riff = riffFor(getCap().brief);
     const beatSec = 60 / riff.bpm;
-    const root = CAPSTONE_PITCHES[c.pitch]?.midi ?? 48;
-    if (c.bars.some((b) => b > 0)) {
-      riff.events.forEach((e) => {
-        const at = e.at * beatSec;
-        playEvent(c, e, beatSec, at);
-        const midis = e.notes.map((n) => root + n);
-        timers.push(window.setTimeout(() => press(midis, true), at * 1000));
-        timers.push(window.setTimeout(() => press(midis, false), (at + e.len * beatSec) * 1000));
-      });
-    }
+    const t0 = performance.now();
+    riff.events.forEach((e) => {
+      const at = e.at * beatSec * 1000;
+      timers.push(
+        window.setTimeout(() => {
+          if (stopped) return;
+          const c = getCap();
+          if (!c.bars.some((b) => b > 0)) return;
+          playEvent(c, e, beatSec, Math.max(0, (t0 + at - performance.now()) / 1000));
+          const root = CAPSTONE_PITCHES[c.pitch]?.midi ?? 48;
+          const midis = e.notes.map((n) => root + n);
+          timers.push(window.setTimeout(() => press(midis, true), Math.max(0, t0 + at - performance.now())));
+          timers.push(window.setTimeout(() => press(midis, false), Math.max(0, t0 + at + e.len * beatSec * 1000 - performance.now())));
+        }, Math.max(0, at - LOOKAHEAD_MS))
+      );
+    });
     const len = riff.beats * beatSec * 1000;
     if (loop) timers.push(window.setTimeout(cycle, len));
-    else timers.push(window.setTimeout(() => {
-      active.clear();
-      show();
-    }, len));
+    else
+      timers.push(
+        window.setTimeout(() => {
+          active.clear();
+          show();
+        }, len)
+      );
   };
   cycle();
   return () => {

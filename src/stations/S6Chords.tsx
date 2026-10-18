@@ -38,12 +38,22 @@ function playStack(st: Stack, root: number) {
   );
 }
 
-type Q = { answer: string; root: number };
+/** answer = the interval on the piano; options = the four graphs to choose from (ids of intervals, shuffled). */
+type Q = { answer: string; root: number; options: string[] };
 
 function makeQuestions(): Q[] {
   return shuffle(INTERVALS.map((i) => i.id))
     .slice(0, 4)
-    .map((answer) => ({ answer, root: randInt(48, 55) }));
+    .map((answer) => {
+      const others = shuffle(INTERVALS.map((i) => i.id).filter((id) => id !== answer)).slice(0, 3);
+      return { answer, root: randInt(48, 55), options: shuffle([answer, ...others]) };
+    });
+}
+
+/** The two notes' sine waves added together, drawn over six cycles of the lower note. */
+function sumFn(st: Stack, root: number) {
+  const freqs = st.steps.map((s) => midiToFreq(root + s));
+  return (t: number) => freqs.reduce((sum, f) => sum + 0.8 * Math.sin(2 * Math.PI * f * t), 0);
 }
 
 export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
@@ -53,28 +63,20 @@ export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
   const exTraces = ex.ratio.map((n, i) => ({ fn: (t: number) => (1.6 / ex.ratio.length) * Math.sin(2 * Math.PI * baseHz * n * t), color: COLORS[i], width: 1.8 }));
   const repeatMs = (1000 / baseHz).toFixed(1);
 
-  const [qs] = useSaved('chord:qs', makeQuestions);
-  const [tried, setTried] = useSaved<Record<number, string>>('chord:tried', {});
-  const [picked, setPicked] = useSaved<Record<number, string>>('chord:picked', {});
-  const [summary, setSummary] = useSaved('chord:summary', false);
-  const r = useRounds('chord', qs.length, done, onComplete);
+  const [qs] = useSaved('chord2:qs', makeQuestions);
+  const [picked, setPicked] = useSaved<Record<number, string>>('chord2:picked', {});
+  const [summary, setSummary] = useSaved('chord2:summary', false);
+  const r = useRounds('chord2', qs.length, done, onComplete);
   const q = qs[r.index];
   const choice = picked[r.index] ?? null;
-  const current = tried[r.index] ?? null;
   const answerStack = byId(q.answer);
+  const rootHz = midiToFreq(q.root);
 
-  const audition = (id: string) => {
+  const choose = (id: string) => {
     if (choice) return;
-    setTried({ ...tried, [r.index]: id });
-    audio.stopAll();
-    playStack(byId(id), q.root);
+    setPicked({ ...picked, [r.index]: id });
+    r.answer(mcScore(id === q.answer));
   };
-  const submit = () => {
-    if (!current) return;
-    setPicked({ ...picked, [r.index]: current });
-    r.answer(mcScore(current === q.answer));
-  };
-  const pianoNotes = choice ? answerStack.steps.map((s) => q.root + s) : current ? byId(current).steps.map((s) => q.root + s) : [q.root];
 
   return (
     <div className="station">
@@ -127,45 +129,41 @@ export function S6Chords({ info, done, onComplete, onNext }: StationProps) {
       </Section>
 
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map((x) => `Match the ${byId(x.answer).name.toLowerCase()}`)} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />
+        <StationDone scores={r.scores} labels={qs.map((x) => `Match the ${byId(x.answer).name.toLowerCase()}'s waveform`)} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />
       ) : (
         <Section
           title="Match the interval"
-          note="Play the mystery interval, then try the interval buttons (they start on the same note) until one sounds the same. Try as many as you like, then submit."
+          note="The piano shows two keys pressed together. Their two sine waves add up to one combined wave. Find the graph that matches."
         >
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
-          <div className="btn-row">
-            <PlayButton
-              kind="primary"
-              onClick={() => {
-                audio.stopAll();
-                playStack(answerStack, q.root);
-              }}
-            >
-              Play the mystery interval
-            </PlayButton>
-          </div>
-          <div className="seg wrap" role="group" aria-label="Try an interval">
-            {INTERVALS.map((iv) => {
-              const cls = choice ? (iv.id === q.answer ? 'right-pill' : iv.id === choice ? 'wrong-pill' : '') : iv.id === current ? 'on' : '';
-              return (
-                <button key={iv.id} className={cls} aria-pressed={iv.id === current} disabled={!!choice} onClick={() => audition(iv.id)}>
-                  {iv.name}
-                </button>
-              );
-            })}
-          </div>
-          <Piano lo={48} hi={71} lit={pianoNotes} label={choice ? 'The answer' : current ? 'Your choice' : 'The starting note'} />
-          <div className="btn-row">
-            <button className="btn primary" disabled={!current || !!choice} onClick={submit}>
-              {current ? `Submit: ${byId(current).name}` : 'Pick an interval to submit'}
-            </button>
+          <div className="q-stage stage-chord">
+            <p className="question">These two keys are played together. Which graph shows their added-together wave?</p>
+            <Piano lo={48} hi={71} lit={answerStack.steps.map((s) => q.root + s)} label="The two keys that are played" />
+            <p className="hint">Hint: count how many times the higher note wiggles for each wiggle of the lower note. The ratio box above will help.</p>
+            <div className="choice-plots two">
+              {q.options.map((id, i) => {
+                const st = byId(id);
+                const letter = String.fromCharCode(65 + i);
+                const cls = !choice ? '' : id === q.answer ? 'right' : id === choice ? 'wrong' : 'dim';
+                return (
+                  <button key={id} className={`choice plot-choice ${cls}`} disabled={!!choice} onClick={() => choose(id)} aria-label={`Graph ${letter}`}>
+                    <WavePlot tag={letter} traces={[{ fn: sumFn(st, q.root), color: 'var(--ink)', width: 2.2 }]} duration={6 / rootHz} yMax={1.7} height={110} label={`Option ${letter}`} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="btn-row">
+              <PlayButton disabled={!choice} onClick={() => playStack(answerStack, q.root)}>
+                Hear the interval
+              </PlayButton>
+            </div>
           </div>
           <FeedbackSlot>
             {choice && (
               <Feedback ok={choice === q.answer}>
-                It was a <strong>{answerStack.name.toLowerCase()}</strong>: {answerStack.steps.map((s) => midiName(q.root + s)).join(' to ')}, {answerStack.steps[1]} piano steps apart.
-                {choice !== q.answer && ` You picked a ${byId(choice).name.toLowerCase()} (${byId(choice).steps[1]} steps).`}
+                It was a <strong>{answerStack.name.toLowerCase()}</strong>: {answerStack.steps.map((s) => midiName(q.root + s)).join(' and ')}, {answerStack.steps[1]} piano steps apart. The notes vibrate in the
+                ratio {answerStack.ratio.join(':')}, so the added wave has {answerStack.ratio[1]} wiggles of the higher note for every {answerStack.ratio[0]} of the lower.
+                {choice !== q.answer && ` Your pick was the graph for a ${byId(choice).name.toLowerCase()} (${byId(choice).ratio.join(':')}).`}
               </Feedback>
             )}
           </FeedbackSlot>

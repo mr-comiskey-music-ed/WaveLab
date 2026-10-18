@@ -1516,5 +1516,8 @@ kbd {
 
 .feedback-slot.tall { min-height: 160px; }
 .match-slot { min-height: 320px; display: flex; flex-direction: column; gap: 10px; }
-.q-stage.stage-read { min-height: 560px; }
+.q-stage.stage-read { min-height: 530px; }
 .q-stage.stage-harm { min-height: 640px; }
+
+.choice-plots.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.q-stage.stage-chord { min-height: 530px; }

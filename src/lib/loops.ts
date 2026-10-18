@@ -18,6 +18,8 @@ export interface Loop {
   events: LoopEvent[];
 }
 
+const LOOKAHEAD_MS = 80;
+
 /** Starts a loop; returns a stop function. `onNotes` gets the MIDI notes sounding right now. */
 export function startLoop(
   getLoop: () => Loop,
@@ -42,9 +44,17 @@ export function startLoop(
     if (stopped) return;
     const loop = getLoop();
     const beatSec = 60 / loop.bpm;
+    const t0 = performance.now();
     loop.events.forEach((e) => {
       const at = e.at * beatSec;
-      playEvent(e, at, beatSec);
+      // Each note is handed to the sound engine just before it plays (not the whole loop up front),
+      // so anything that changes while the loop runs is heard on the very next note.
+      timers.push(
+        window.setTimeout(() => {
+          if (stopped) return;
+          playEvent(e, Math.max(0, (t0 + at * 1000 - performance.now()) / 1000), beatSec);
+        }, Math.max(0, at * 1000 - LOOKAHEAD_MS))
+      );
       timers.push(window.setTimeout(() => press(e.notes, true), at * 1000));
       timers.push(window.setTimeout(() => press(e.notes, false), (at + e.len * beatSec) * 1000));
     });

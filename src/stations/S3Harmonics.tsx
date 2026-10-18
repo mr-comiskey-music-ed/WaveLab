@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { audio } from '../lib/audio';
 import { harmonicValue, midiToFreq, peakOf, pick, randInt, recipe, shuffle, WaveType, WAVE_NAMES, WAVE_TYPES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
@@ -70,16 +70,18 @@ function useRiffPlayer() {
   const [playing, setPlaying] = useState<string | null>(null);
   const [lit, setLit] = useState<number[]>([]);
   const stopRef = useRef<(() => void) | null>(null);
+  const owner = useId();
   useEffect(() => () => stopRef.current?.(), []);
-  const play = (id: string, loopFrom: WaveType, wave: WaveType) => {
-    stopRef.current?.();
-    setPlaying(id);
-    stopRef.current = playRoleLoop(loopFrom, wave, setLit, () => setPlaying((p) => (p === id ? null : p)));
-  };
   const stop = () => {
     stopRef.current?.();
     stopRef.current = null;
     setPlaying(null);
+  };
+  const play = (id: string, loopFrom: WaveType, wave: WaveType) => {
+    stopRef.current?.();
+    audio.claim(owner, stop); // anything else that was playing stops
+    setPlaying(id);
+    stopRef.current = playRoleLoop(loopFrom, wave, setLit, () => setPlaying((p) => (p === id ? null : p)));
   };
   return { playing, lit, play, stop };
 }

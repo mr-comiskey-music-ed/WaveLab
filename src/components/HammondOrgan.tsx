@@ -132,6 +132,7 @@ export function HammondOrgan() {
   const setBar = (i: number, v: number) => setLevels(levels.map((x, k) => (k === i ? v : x)));
   const registration = `${levels.slice(0, 2).join('')} ${levels.slice(2, 6).join('')} ${levels.slice(6).join('')}`;
   const playChord = () => {
+    audio.claim('organ-chord');
     const h = harmonicsFor(levels);
     if (!h.some((x) => x > 0)) return;
     [53, 57, 60, 65].forEach((m) => audio.playOrgan({ freq: midiToFreq(m), harmonics: h, level: 0.32, duration: 1.6 }));
