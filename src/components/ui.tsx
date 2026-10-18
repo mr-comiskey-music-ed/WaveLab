@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { audio } from '../lib/audio';
 import { roundTone, roundWord, sectionLink, SITE_NAME, StationInfo, StationResult } from '../lib/stations';
 import { useSaved } from '../lib/persist';
 import { openSite } from './SplitHelp';
@@ -233,8 +234,16 @@ export function StationDone({
 }
 
 export function PlayButton({ onClick, children, kind = 'secondary', disabled }: { onClick: () => void; children: ReactNode; kind?: 'primary' | 'secondary'; disabled?: boolean }) {
+  const id = useId();
   return (
-    <button className={`btn ${kind} play`} onClick={onClick} disabled={disabled}>
+    <button
+      className={`btn ${kind} play`}
+      onClick={() => {
+        audio.claim(id); // starting this sound stops whatever else was playing
+        onClick();
+      }}
+      disabled={disabled}
+    >
       <svg viewBox="0 0 16 16" aria-hidden="true">
         <path d="M4 2.5v11l9-5.5z" fill="currentColor" />
       </svg>
@@ -245,6 +254,15 @@ export function PlayButton({ onClick, children, kind = 'secondary', disabled }: 
 
 /** A play/stop toggle that keeps the same width whichever state it's in. */
 export function LoopButton({ on, onToggle, playLabel, stopLabel = 'Stop' }: { on: boolean; onToggle: () => void; playLabel: string; stopLabel?: string }) {
+  const id = useId();
+  const toggleRef = useRef(onToggle);
+  toggleRef.current = onToggle;
+  useEffect(() => {
+    // Turning on claims the speakers (which switches any other loop off); turning off lets go.
+    if (on) audio.claim(id, () => toggleRef.current());
+    else audio.release(id);
+  }, [on, id]);
+  useEffect(() => () => audio.release(id), [id]);
   return (
     <button className={`btn loop-btn ${on ? 'stop' : 'secondary'}`} aria-pressed={on} onClick={onToggle}>
       <svg viewBox="0 0 16 16" aria-hidden="true">

@@ -292,6 +292,25 @@ class AudioEngine {
     return this.drones.has(id);
   }
 
+  // ---------- one sound at a time ----------
+  private owner: { id: string; stop: () => void } | null = null;
+
+  /**
+   * Whoever starts a sound calls this first. The previous owner is told to stop
+   * (so its button flips back to "Play") and any ringing notes are silenced.
+   */
+  claim(id: string, stop: () => void = () => {}) {
+    const prev = this.owner;
+    this.owner = { id, stop };
+    if (prev && prev.id !== id) prev.stop();
+    this.stopAll();
+  }
+
+  /** The owner stopped by itself; nothing to stop later. */
+  release(id: string) {
+    if (this.owner?.id === id) this.owner = null;
+  }
+
   // ---------- recorded clips (the phase rounds) ----------
   private clipCache = new Map<string, Promise<AudioBuffer>>();
   private liveClips = new Set<ClipPlayer>();

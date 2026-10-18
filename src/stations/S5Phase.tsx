@@ -20,14 +20,31 @@ type Round =
   | { kind: 'bass'; base: number }
   | { kind: 'snare' }
   | { kind: 'overhead'; leftX: number; startX: number }
-  | { kind: 'train'; delayMs: number };
+  | { kind: 'train'; startMs: number; targetMs: number };
+
+/** The headphone electronics have a built-in delay (the target). The slider starts well away from it. */
+function busRound(): Round {
+  const targetMs = Math.round(rand(1.6, 4.2) * 20) / 20;
+  const startMs = targetMs > 3 ? Math.round(rand(0.2, 1.2) * 20) / 20 : Math.round(rand(4.6, 5.8) * 20) / 20;
+  return { kind: 'train', startMs, targetMs };
+}
+
+/**
+ * Real overhead rooms are so reverberant that a late mic barely sounds wrong. To make the problem easier to hear,
+ * the right mic is partly mixed with the left one (as if more of the direct snare reached both mics).
+ * Try ?oh=0 (pure recording) up to ?oh=1 (same sound in both) in the address bar to compare.
+ */
+const OH_BLEND = (() => {
+  const v = parseFloat(new URLSearchParams(location.search).get('oh') ?? '');
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.6;
+})();
 
 function makeRounds(): Round[] {
   return [
     { kind: 'bass', base: rand(3.5, 6) },
     { kind: 'snare' },
     { kind: 'overhead', leftX: Math.round(rand(45, 85)), startX: Math.round(rand(220, 290)) },
-    { kind: 'train', delayMs: Math.round(rand(1.5, 4.5) * 20) / 20 },
+    busRound(),
   ];
 }
 
@@ -64,14 +81,14 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const [exOn, exToggle] = useLoop(() => audio.play({ freq: 220, harmonics: [1], level: 0.6 * exLevel + 0.001, normalize: 'none', duration: 0.6 }), 700);
 
   // ---------- challenge ----------
-  const [rounds] = useSaved('phase3:rounds', makeRounds);
-  const [nudge, setNudge] = useSaved<number>('phase3:nudge', 0);
-  const [snareFlip, setSnareFlip] = useSaved<boolean>('phase3:snareFlip', false);
-  const [micX, setMicX] = useSaved<number>('phase3:micX', () => (rounds[2] as { startX: number }).startX);
-  const [busDelay, setBusDelay] = useSaved<number>('phase3:busDelay', () => (rounds[3] as { delayMs: number }).delayMs);
-  const [busFlip, setBusFlip] = useSaved<boolean>('phase3:busFlip', false);
-  const [summary, setSummary] = useSaved('phase3:summary', false);
-  const r = useRounds('phase3', rounds.length, done, onComplete);
+  const [rounds] = useSaved('phase4:rounds', makeRounds);
+  const [nudge, setNudge] = useSaved<number>('phase4:nudge', 0);
+  const [snareFlip, setSnareFlip] = useSaved<boolean>('phase4:snareFlip', false);
+  const [micX, setMicX] = useSaved<number>('phase4:micX', () => (rounds[2] as { startX: number }).startX);
+  const [busDelay, setBusDelay] = useSaved<number>('phase4:busDelay', () => (rounds[3] as { startMs: number }).startMs);
+  const [busFlip, setBusFlip] = useSaved<boolean>('phase4:busFlip', false);
+  const [summary, setSummary] = useSaved('phase4:summary', false);
+  const r = useRounds('phase4', rounds.length, done, onComplete);
   const rd = rounds[r.index];
   const locked = r.answered;
 
@@ -95,7 +112,9 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
 
   // Round 4: bus hum + headphone anti-noise
   const busWave = (t: number, shift = 0) => 0.6 * Math.sin(2 * Math.PI * BUS_HZ * t + shift) + 0.3 * Math.sin(2 * Math.PI * 2 * BUS_HZ * t + 2 * shift);
-  const busShift = -2 * Math.PI * BUS_HZ * (busDelay / 1000); // a delay shows up as a phase lag
+  const busTarget = rounds[3].kind === 'train' ? rounds[3].targetMs : 2;
+  const busOff = busDelay - busTarget; // 0 = the headphones' delay matches the bus noise
+  const busShift = -2 * Math.PI * BUS_HZ * (busOff / 1000); // a delay shows up as a phase lag
   const busSign = busFlip ? -1 : 1;
 
   // The real recordings, looped and mixed live. Sliders and buttons change the mix while it plays.
@@ -116,11 +135,12 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       case 'overhead':
         return [
           { url: CLIP('oh-left'), delayMs: Math.max(0, -ohOffsetMs), gain: 0.9 },
-          { url: CLIP('oh-right'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 },
+          { url: CLIP('oh-right'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 * (1 - OH_BLEND) },
+          { url: CLIP('oh-left'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 * OH_BLEND },
         ];
       case 'train':
         return [
-          { url: CLIP('bus-hum'), delayMs: 0, gain: 0.9 },
+          { url: CLIP('bus-hum'), delayMs: busTarget, gain: 0.9 },
           { url: CLIP('bus-hum-low'), delayMs: busDelay, gain: busSign * 0.9 },
         ];
     }
@@ -153,7 +173,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       case 'overhead':
         return 1 - Math.abs(dR - dL) / 12;
       case 'train':
-        return busFlip ? 1 - busDelay / 1.2 : 0;
+        return busFlip ? 1 - Math.abs(busOff) / 1.2 : 0;
     }
   };
 
@@ -294,7 +314,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
             <>
               <p className="question">
                 You’re riding a bus with noise-cancelling headphones. A tiny mic on the outside hears the engine’s rumble, and the headphones play it back to cancel it. Two things have to be
-                right: the copy must be flipped (Ø), and the electronics add a little delay that you can tune out. Flip the polarity and slide the delay until the rumble disappears.
+                right: the copy must be flipped (Ø), and the electronics have a little built-in delay that has to be matched. Flip the polarity, then slide the delay until the rumble is as quiet as you can get it.
               </p>
               <HeadphoneScene />
               <WavePlot
@@ -318,7 +338,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
               />
               <label className="slider wide">
                 <span>Headphone delay: {busDelay.toFixed(2)} ms</span>
-                <input type="range" min={0} max={5} step={0.05} value={busDelay} disabled={locked} onChange={(e) => setBusDelay(+e.target.value)} />
+                <input type="range" min={0} max={6} step={0.05} value={busDelay} disabled={locked} onChange={(e) => setBusDelay(+e.target.value)} />
               </label>
               <p className="hint">The drawing shows just the rumble’s two lowest tones. The recording has many more, and you’ll hear the hiss no matter what: headphones can’t cancel that.</p>
             </>
