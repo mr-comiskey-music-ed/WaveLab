@@ -1,290 +1,290 @@
-import React, { useState, useEffect } from 'react';
-import { audioEngine } from './audio/audioEngine';
-import { Harmonic, AppMode, StudentScore } from './types';
-import { VisualizerPanel } from './components/VisualizerPanel';
-import { WalkthroughMode } from './components/WalkthroughMode';
-import { FourierLab } from './components/FourierLab';
-import { QuestsMode } from './components/QuestsMode';
-import { GradeReportModal } from './components/GradeReportModal';
-import { WaveformLogo } from './components/WaveformLogo';
-import { buildVerificationCode, decodeReportFromLink } from './utils/gradeSecurity';
-import {
-  Volume2,
-  VolumeX,
-  Compass,
-  Sliders,
-  Trophy,
-  GraduationCap,
-  Sparkles,
-  Zap,
-} from 'lucide-react';
+import { ReactElement, useCallback, useEffect, useRef, useState } from 'react';
+import { audio } from './lib/audio';
+import { assignedFromUrl, Capstone, CAPSTONE_BRIEFS, Results, StationId, StationResult, STATIONS } from './lib/stations';
+import { capstoneComplete, emptyCapstone } from './lib/capstone';
+import { clearProgress, initProgress, useSaved } from './lib/persist';
+import { shuffle } from './lib/waves';
+import { openSite, SplitHelp } from './components/SplitHelp';
+import { Finish } from './components/Finish';
+import { TeacherGrader } from './components/TeacherGrader';
+import { ReadFirstModal } from './components/ui';
+import { S1Reading } from './stations/S1Reading';
+import { S2Sound } from './stations/S2Sound';
+import { S3Harmonics } from './stations/S3Harmonics';
+import { S4Additive } from './stations/S4Additive';
+import { S5Phase } from './stations/S5Phase';
+import { S6Chords } from './stations/S6Chords';
+import { S7Make } from './stations/S7Make';
+import type { StationProps } from './stations/types';
+
+const QUIZ_COMPONENTS: Record<Exclude<StationId, 'make'>, (p: StationProps) => ReactElement> = {
+  read: S1Reading,
+  sound: S2Sound,
+  harm: S3Harmonics,
+  add: S4Additive,
+  phase: S5Phase,
+  chord: S6Chords,
+};
+
+// Which sections this link assigns, and the matching save slot on this device.
+const ASSIGNED = assignedFromUrl(window.location.search);
+const MY_STATIONS = STATIONS.filter((s) => ASSIGNED.includes(s.id));
+const IS_TEACHER = new URLSearchParams(window.location.search).has('teacher');
+initProgress(ASSIGNED.join(','));
+
+// Per-device conveniences (not student work).
+const HELP_SEEN_KEY = 'wavelab-split-help-seen';
+const VOLUME_TIP_KEY = 'wavelab-volume-tip-dismissed';
+const getFlag = (k: string) => {
+  try {
+    return localStorage.getItem(k) === '1';
+  } catch {
+    return false;
+  }
+};
+const setFlag = (k: string) => {
+  try {
+    localStorage.setItem(k, '1');
+  } catch {
+    /* fine */
+  }
+};
+
+type View = { kind: 'station'; id: StationId } | { kind: 'finish' } | { kind: 'teacher' };
+
+function Logo() {
+  return (
+    <svg className="logo" viewBox="0 0 40 24" aria-hidden="true">
+      <path d="M1 12 C 5 1, 9 1, 13 12 S 21 23, 25 12 S 33 1, 39 12" fill="none" stroke="var(--trace-a)" strokeWidth="3" strokeLinecap="round" />
+      <path d="M1 12 C 4 6, 7 6, 10 12 S 16 18, 19 12 S 25 6, 28 12 S 34 18, 39 12" fill="none" stroke="var(--trace-b)" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
+    </svg>
+  );
+}
+
+function VolumeControl() {
+  const [v, setV] = useState(audio.volume);
+  return (
+    <label className="volume">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 8h3l4-3.5v11L6 12H3z" fill="currentColor" />
+        <path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <span className="sr-only">Volume</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={v}
+        onChange={(e) => {
+          setV(+e.target.value);
+          audio.setVolume(+e.target.value);
+        }}
+      />
+    </label>
+  );
+}
 
 export default function App() {
-  const [activeMode, setActiveMode] = useState<AppMode>('walkthrough');
-  const [fundamentalHz, setFundamentalHz] = useState<number>(130.81); // C3
-  const [isScrambled, setIsScrambled] = useState<boolean>(false);
-
-  // Grade modal state
-  const [showGradeModal, setShowGradeModal] = useState<boolean>(false);
-  const [sharedReportData, setSharedReportData] = useState<StudentScore | null>(null);
-
-  // Auto-resume audio engine on mount and first user interaction
-  useEffect(() => {
-    audioEngine.resume();
-    const handleInteraction = () => {
-      audioEngine.resume();
-    };
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('keydown', handleInteraction, { once: true });
-    window.addEventListener('touchstart', handleInteraction, { once: true });
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-    };
-  }, []);
-
-  // Silence audio whenever switching between sections/modes
-  useEffect(() => {
-    audioEngine.silence();
-  }, [activeMode]);
-
-  // 10 Harmonics master state
-  const [harmonics, setHarmonics] = useState<Harmonic[]>(
-    Array.from({ length: 10 }, (_, i) => ({
-      n: i + 1,
-      amplitude: i === 0 ? 1.0 : 0.0,
-      phase: 0,
-      muted: false,
-      solo: false,
-    }))
-  );
-
-  // Student score & classroom report state
-  const [scoreData, setScoreData] = useState<StudentScore>(() => {
-    const now = new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const code = buildVerificationCode('STUDENT', 0, 0, 0, 0, now);
-    return {
-      studentName: 'Student',
-      studentId: '',
-      questAScore: 0,
-      questBScore: 0,
-      questCScore: 0,
-      totalScore: 0,
-      completedQuests: { a: false, b: false, c: false },
-      timestamp: now,
-      verificationCode: code,
-    };
-  });
-
-  const [walkthroughStep, setWalkthroughStep] = useState<number>(1);
-  const [walkthroughPhaseDeg, setWalkthroughPhaseDeg] = useState<number>(0);
-
-  // Parse URL parameters for shared report on load
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const reportParam = params.get('report');
-      if (reportParam) {
-        const decoded = decodeReportFromLink(reportParam);
-        if (decoded) {
-          setSharedReportData(decoded);
-          setShowGradeModal(true);
-        }
-      }
-    } catch (e) {
-      // ignore
+  const [savedView, setSavedView] = useSaved<View>('view', { kind: 'station', id: MY_STATIONS[0].id });
+  const view: View = IS_TEACHER ? { kind: 'teacher' } : savedView.kind === 'station' && !ASSIGNED.includes(savedView.id) ? { kind: 'station', id: MY_STATIONS[0].id } : savedView;
+  const setView = (v: View) => {
+    if (IS_TEACHER && v.kind !== 'teacher') {
+      window.location.href = window.location.pathname;
+      return;
     }
+    setSavedView(v);
+  };
+  const [results, setResults] = useSaved<Results>('results', {});
+  const [briefChoices] = useSaved('briefChoices', () => shuffle(CAPSTONE_BRIEFS.map((_, i) => i)).slice(0, 3));
+  const [capstone, setCapstone] = useSaved<Capstone>('capstone', () => emptyCapstone(-1));
+  const [startedAt] = useSaved('startedAt', () => Date.now());
+  const [seen, setSeen] = useSaved<StationId[]>('readFirstSeen', []);
+  const [showHelp, setShowHelp] = useState(() => !IS_TEACHER && !getFlag(HELP_SEEN_KEY));
+  const [volumeTip, setVolumeTip] = useState(() => !getFlag(VOLUME_TIP_KEY));
+  const [wideTip, setWideTip] = useState(false);
+  const copiedRef = useRef(false);
+
+  useEffect(() => {
+    audio.stopAll();
+    window.scrollTo({ top: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.kind, view.kind === 'station' ? view.id : '']);
+
+  useEffect(() => {
+    const check = () => setWideTip(window.innerWidth > 1150);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
-  const handleUpdateStudentInfo = (name: string, id: string) => {
-    setScoreData((prev) => {
-      const newCode = buildVerificationCode(
-        name,
-        prev.totalScore,
-        prev.questAScore,
-        prev.questBScore,
-        prev.questCScore,
-        prev.timestamp
-      );
-      return {
-        ...prev,
-        studentName: name,
-        studentId: id,
-        verificationCode: newCode,
-      };
-    });
+  const closeHelp = useCallback(() => {
+    setShowHelp(false);
+    setFlag(HELP_SEEN_KEY);
+  }, []);
+
+  const complete = (id: StationId) => (r: StationResult) => {
+    copiedRef.current = false;
+    setResults((prev) => (prev[id] ? prev : { ...prev, [id]: r }));
   };
 
-  const handleUpdateQuestScore = (quest: 'a' | 'b' | 'c', score: number) => {
-    setScoreData((prev) => {
-      const qA = quest === 'a' ? score : prev.questAScore;
-      const qB = quest === 'b' ? score : prev.questBScore;
-      const qC = quest === 'c' ? score : prev.questCScore;
+  const goStation = (id: StationId) => setView({ kind: 'station', id });
+  const isDone = (id: StationId) => (id === 'make' ? capstoneComplete(capstone) : !!results[id]);
+  const doneCount = MY_STATIONS.filter((s) => isDone(s.id)).length;
+  const allDone = doneCount === MY_STATIONS.length;
+  const currentInfo = view.kind === 'station' ? MY_STATIONS.find((s) => s.id === view.id)! : null;
+  const showReadFirst = !!currentInfo && !showHelp && !seen.includes(currentInfo.id);
+  const closeReadFirst = useCallback(() => {
+    if (currentInfo) setSeen((s) => (s.includes(currentInfo.id) ? s : [...s, currentInfo.id]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInfo?.id]);
 
-      // Calculate composite score (35% A, 35% B, 30% C)
-      const total = qA * 0.35 + qB * 0.35 + qC * 0.3;
-      const newCode = buildVerificationCode(
-        prev.studentName,
-        total,
-        qA,
-        qB,
-        qC,
-        prev.timestamp
-      );
+  if (view.kind === 'teacher') {
+    return (
+      <div className="app">
+        <header className="top">
+          <div className="brand">
+            <Logo />
+            <span className="wordmark">WaveLab</span>
+            <span className="tagline">Teacher tools</span>
+          </div>
+          <div className="top-actions">
+            <VolumeControl />
+          </div>
+        </header>
+        <main className="page">
+          <TeacherGrader onBack={() => (window.location.href = window.location.pathname)} />
+        </main>
+      </div>
+    );
+  }
 
-      return {
-        ...prev,
-        questAScore: qA,
-        questBScore: qB,
-        questCScore: qC,
-        totalScore: Math.round(total),
-        completedQuests: {
-          ...prev.completedQuests,
-          [quest]: true,
-        },
-        verificationCode: newCode,
-      };
-    });
-  };
+  const index = currentInfo ? MY_STATIONS.indexOf(currentInfo) : -1;
+  const nextStation = index >= 0 && index < MY_STATIONS.length - 1 ? MY_STATIONS[index + 1] : null;
 
   return (
-    <div className="min-h-screen w-full bg-[#0f1117] text-gray-300 font-sans p-3 sm:p-4 space-y-4 flex flex-col selection:bg-[#00ff9d] selection:text-black">
-      {/* Sleek Interface Header */}
-      <header className="flex flex-wrap items-center justify-between bg-[#1a1d26] p-4 rounded-xl border border-white/5 gap-4">
-        {/* Brand & Version Badge */}
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <WaveformLogo className="w-10 h-10 shrink-0" />
-          <div>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight uppercase">
-              Waveform Lab
-            </h1>
-            <p className="text-xs text-gray-500 uppercase tracking-widest">
-              Additive Synthesis & Harmonic Theory
-            </p>
-          </div>
+    <div className="app">
+      <header className="top">
+        <div className="brand">
+          <Logo />
+          <span className="wordmark">WaveLab</span>
+          <span className="tagline">A lab companion to The Pudding’s interactive Waveforms site</span>
         </div>
-
-        {/* Mode Navigation Tabs */}
-        <nav className="flex bg-black/40 p-1 rounded-lg border border-white/10 overflow-x-auto gap-1">
-          <button
-            id="tab-mode-walkthrough"
-            onClick={() => setActiveMode('walkthrough')}
-            className={`px-3 sm:px-4 py-2 rounded text-xs font-bold uppercase transition-all flex items-center gap-1.5 shrink-0 ${
-              activeMode === 'walkthrough'
-                ? 'bg-[#2a2e3a] text-[#00ff9d] border border-white/10 shadow-sm'
-                : 'text-gray-500 hover:text-white'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>Learn</span>
+        <div className="top-actions">
+          <VolumeControl />
+          <button className="btn secondary small" onClick={() => openSite()}>
+            Open the Waveforms site
           </button>
-          <button
-            id="tab-mode-fourier"
-            onClick={() => setActiveMode('fourier')}
-            className={`px-3 sm:px-4 py-2 rounded text-xs font-bold uppercase transition-all flex items-center gap-1.5 shrink-0 ${
-              activeMode === 'fourier'
-                ? 'bg-[#2a2e3a] text-[#00ff9d] border border-white/10 shadow-sm'
-                : 'text-gray-500 hover:text-white'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Playground</span>
-          </button>
-          <button
-            id="tab-mode-quests"
-            onClick={() => setActiveMode('quests')}
-            className={`px-3 sm:px-4 py-2 rounded text-xs font-bold uppercase transition-all flex items-center gap-1.5 shrink-0 ${
-              activeMode === 'quests'
-                ? 'bg-[#2a2e3a] text-[#00ff9d] border border-white/10 shadow-sm'
-                : 'text-gray-500 hover:text-white'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Challenges</span>
-          </button>
-        </nav>
-
-        {/* Current Grade & Report Button */}
-        <div className="flex items-center space-x-3">
-          <div className="text-right">
-            <div className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Current Grade</div>
-            <div className="text-sm font-mono text-[#00e5ff] font-bold">
-              {Math.round(scoreData.totalScore)} / 100
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              setSharedReportData(null);
-              setShowGradeModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-[#00ff9d]/10 hover:bg-[#00ff9d]/20 text-[#00ff9d] px-3 py-2 rounded-lg border border-[#00ff9d]/30 text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(0,255,157,0.15)]"
-          >
-            <GraduationCap className="w-4 h-4" />
-            <span>Report</span>
+          <button className="btn quiet small" onClick={() => setShowHelp(true)}>
+            Split-screen help
           </button>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full space-y-4">
-        {/* Dual Real-Time Visualizer Engine (Fixed Top Hero) */}
-        <VisualizerPanel
-          isScrambled={isScrambled}
-          harmonics={harmonics}
-          fundamentalHz={fundamentalHz}
-          isWalkthroughStep2={activeMode === 'walkthrough' && walkthroughStep === 2}
-          isWalkthroughStep5={activeMode === 'walkthrough' && walkthroughStep === 5}
-          walkthroughPhase={(walkthroughPhaseDeg * Math.PI) / 180}
-        />
+      {volumeTip && (
+        <div className="tip volume-tip">
+          <span>
+            🔊 Before you start, turn your Chromebook’s volume to about <strong>halfway</strong>. Some sounds are high-pitched.
+          </span>
+          <button
+            className="link"
+            onClick={() => {
+              setVolumeTip(false);
+              setFlag(VOLUME_TIP_KEY);
+            }}
+          >
+            Done
+          </button>
+        </div>
+      )}
+      {wideTip && (
+        <div className="tip">
+          WaveLab is made to sit next to the Waveforms site.{' '}
+          <button className="link" onClick={() => setShowHelp(true)}>
+            Set up split screen
+          </button>
+        </div>
+      )}
 
-        {/* Dynamic Mode Content */}
-        {activeMode === 'walkthrough' && (
-          <WalkthroughMode
-            onUpdateHarmonics={setHarmonics}
-            onUpdateFundamental={setFundamentalHz}
-            onStepChange={setWalkthroughStep}
-            onPhaseChange={setWalkthroughPhaseDeg}
-            onGoToPlayground={() => setActiveMode('fourier')}
-          />
-        )}
+      {MY_STATIONS.length > 1 && (
+        <nav className="steps" aria-label="Stations">
+          <ol style={{ gridTemplateColumns: `repeat(${MY_STATIONS.length}, minmax(56px, 1fr))`, maxWidth: Math.max(240, MY_STATIONS.length * 104) }}>
+            {MY_STATIONS.map((s) => {
+              const n = STATIONS.indexOf(s) + 1;
+              const active = view.kind === 'station' && view.id === s.id;
+              return (
+                <li key={s.id} className={`${active ? 'active' : ''} ${isDone(s.id) ? 'done' : ''}`}>
+                  <button onClick={() => goStation(s.id)} aria-current={active ? 'step' : undefined} title={s.title}>
+                    <span className="dot">{isDone(s.id) ? '✓' : n}</span>
+                    <span className="step-name">{s.short}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      )}
 
-        {activeMode === 'fourier' && (
-          <FourierLab
-            harmonics={harmonics}
-            onUpdateHarmonics={setHarmonics}
-            fundamentalHz={fundamentalHz}
-            onUpdateFundamental={setFundamentalHz}
-          />
-        )}
-
-        {activeMode === 'quests' && (
-          <QuestsMode
-            harmonics={harmonics}
-            onUpdateHarmonics={setHarmonics}
-            fundamentalHz={fundamentalHz}
-            onSetScrambled={setIsScrambled}
-            onUpdateScore={handleUpdateQuestScore}
+      <main className="page">
+        {currentInfo &&
+          (currentInfo.id === 'make' ? (
+            <S7Make
+              key="make"
+              info={currentInfo}
+              capstone={capstone}
+              choices={briefChoices}
+              onChange={(c) => {
+                copiedRef.current = false;
+                setCapstone(c);
+              }}
+              onFinish={() => setView({ kind: 'finish' })}
+            />
+          ) : (
+            (() => {
+              const Comp = QUIZ_COMPONENTS[currentInfo.id];
+              return (
+                <Comp
+                  key={currentInfo.id}
+                  info={currentInfo}
+                  done={results[currentInfo.id]}
+                  onComplete={complete(currentInfo.id)}
+                  onNext={nextStation ? () => goStation(nextStation.id) : () => setView({ kind: 'finish' })}
+                />
+              );
+            })()
+          ))}
+        {view.kind === 'finish' && (
+          <Finish
+            results={results}
+            capstone={capstone}
+            startedAt={startedAt}
+            assigned={ASSIGNED}
+            onGoTo={goStation}
+            onCopied={() => {
+              copiedRef.current = true;
+            }}
+            onStartOver={() => {
+              clearProgress();
+              window.location.reload();
+            }}
           />
         )}
       </main>
 
-      {/* Grade Report Modal Pop-up */}
-      {showGradeModal && (
-        <GradeReportModal
-          scoreData={sharedReportData || scoreData}
-          onUpdateStudentInfo={handleUpdateStudentInfo}
-          onClose={() => setShowGradeModal(false)}
-          isReadOnly={!!sharedReportData}
-        />
-      )}
+      <footer className="bottom">
+        <span className="progress">
+          {doneCount} of {MY_STATIONS.length} {MY_STATIONS.length === 1 ? 'station' : 'stations'} done. Your progress saves automatically.
+        </span>
+        <button className={`btn ${allDone ? 'primary' : 'quiet'}`} onClick={() => setView({ kind: 'finish' })}>
+          {allDone ? 'Get my code' : 'Turn in / get code'}
+        </button>
+      </footer>
+      <p className="teacher-link">
+        <a href="?teacher">Teacher tools</a>
+      </p>
 
+      {showHelp && <SplitHelp onClose={closeHelp} />}
+      {showReadFirst && currentInfo && <ReadFirstModal key={currentInfo.id} info={currentInfo} onClose={closeReadFirst} />}
     </div>
   );
 }
