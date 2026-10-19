@@ -76,13 +76,8 @@ export function S7Make({ info, capstone: c, choices, onChange, onFinish }: Props
           <PlayButton onClick={() => playCapstoneNote(c)}>Play one note</PlayButton>
         </div>
         <Piano lo={lo} hi={hi} lit={lit} label="Notes the loop is playing" />
-        <Drawbars steps={10} values={amps} onChange={(v) => set({ bars: v.map((x) => Math.round(x * 10)) })} colorFor={(i) => (i % 2 === 0 ? 'var(--trace-a)' : 'var(--trace-b)')} />
-        <p className="legend">
-          <span className="key a" /> Odd harmonics <span className="key b" /> Even harmonics
-        </p>
-        <WavePlot traces={[{ fn: (t) => fn(t * 2), color: 'var(--ink)' }]} duration={1} height={110} label="Your sound's wave shape" />
         <div className="controls">
-          <div className="seg" role="group" aria-label="Pitch">
+          <div className="seg" role="group" aria-label="Register">
             {CAPSTONE_PITCHES.map((p, i) => (
               <button key={p.label} className={c.pitch === i ? 'on' : ''} aria-pressed={c.pitch === i} onClick={() => set({ pitch: i })}>
                 {p.label}
@@ -98,6 +93,11 @@ export function S7Make({ info, capstone: c, choices, onChange, onFinish }: Props
             </button>
           </div>
         </div>
+        <Drawbars steps={10} values={amps} onChange={(v) => set({ bars: v.map((x) => Math.round(x * 10)) })} colorFor={(i) => (i % 2 === 0 ? 'var(--trace-a)' : 'var(--trace-b)')} />
+        <p className="legend">
+          <span className="key a" /> Odd harmonics <span className="key b" /> Even harmonics
+        </p>
+        <WavePlot traces={[{ fn: (t) => fn(t * 2), color: 'var(--ink)' }]} duration={1} height={110} label="Your sound's wave shape" />
       </Section>
 
       <Section title="3. Name it and explain it">
@@ -106,7 +106,7 @@ export function S7Make({ info, capstone: c, choices, onChange, onFinish }: Props
           <input type="text" maxLength={40} value={c.name} placeholder="e.g. Rust Bucket Blues" onChange={(e) => set({ name: e.target.value })} />
         </label>
         <label className="field">
-          <span>Why does it fit the brief? Talk about the harmonics (and attack) you chose.</span>
+          <span>What makes the tone (harmonics), register (low/high) and attack (slow/fast) you chose fit the brief?</span>
           <textarea
             rows={4}
             maxLength={400}

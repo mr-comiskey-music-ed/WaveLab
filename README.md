@@ -17,9 +17,10 @@ Each station opens with a pop-up that jumps the Waveforms window to the right se
 | 7 | Make a sound | In Conclusion | design a sound for a brief and explain it with harmonics |
 
 Stations 1–6 are auto-graded: every student gets different random questions, one try per round.
-Right/wrong rounds are worth 100 or 50; slider/matching rounds earn 50–100. Students see words, not numbers.
+Right/wrong rounds are worth 100 or 50; slider/matching rounds earn 50–100 (the by-ear harmonic-matching rounds earn 60–100, and have a hint button).
+After finishing Harmonics or Additive, a student can retry the ear-training rounds with new sounds; the better score of each round is kept. Students see words, not numbers.
 Station 7 is for the teacher to grade (the grader plays each student's sound in its brief's loop).
-Progress saves in the student's browser (localStorage, no name), so they can stop and come back.
+Progress saves on the student's device (browser localStorage, no name), so they can stop and come back.
 
 ## Grading
 

@@ -119,8 +119,8 @@ export interface StationResult {
 /** Grade for a right/wrong round: a wrong answer still earns half credit. */
 export const mcScore = (ok: boolean) => (ok ? 100 : 50);
 
-/** Grade for a skill round from a 0–1 quality: never below 50. */
-export const skillScore = (quality: number) => Math.round(50 + 50 * Math.max(0, Math.min(1, quality)));
+/** Grade for a skill round from a 0–1 quality: never below `floor` (50 unless a round says otherwise). */
+export const skillScore = (quality: number, floor = 50) => Math.round(floor + (100 - floor) * Math.max(0, Math.min(1, quality)));
 
 /** Words students see instead of numbers. */
 export function roundWord(score: number, kind: 'mc' | 'skill') {

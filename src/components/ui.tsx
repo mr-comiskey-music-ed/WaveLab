@@ -4,10 +4,24 @@ import { roundTone, roundWord, sectionLink, SITE_NAME, StationInfo, StationResul
 import { useSaved } from '../lib/persist';
 import { openSite } from './SplitHelp';
 
-/** Steps through a fixed set of rounds (saved across reloads); reports scores once when all are done. */
-export function useRounds(key: string, total: number, done: StationResult | undefined, onComplete: (r: StationResult) => void) {
+const CLEARED = null as unknown as number;
+
+/**
+ * Steps through a fixed set of rounds (saved across reloads); reports scores once when all are done.
+ * A finished station can also retry some of its rounds (`startRetry`): those rounds are cleared and redone,
+ * only they are visited, and the better of the old and new score is kept.
+ */
+export function useRounds(
+  key: string,
+  total: number,
+  done: StationResult | undefined,
+  onComplete: (r: StationResult) => void,
+  onRevise?: (r: StationResult) => void
+) {
   const [index, setIndex] = useSaved<number>(`${key}:index`, 0);
   const [scores, setScores] = useSaved<number[]>(`${key}:scores`, []);
+  const [retry, setRetry] = useSaved<{ idx: number[]; before: number[] } | null>(`${key}:retry`, null);
+  const [retried, setRetried] = useSaved<boolean>(`${key}:retried`, false);
   const reported = useRef(!!done);
   const current = scores[index] ?? null;
   const finished = !!done || scores.filter((x) => x !== undefined && x !== null).length === total;
@@ -16,15 +30,46 @@ export function useRounds(key: string, total: number, done: StationResult | unde
     if (scores[index] !== undefined && scores[index] !== null) return;
     const next = [...scores];
     next[index] = Math.max(0, Math.min(100, Math.round(score)));
+    if (retry) {
+      if (retry.idx.every((i) => next[i] !== undefined && next[i] !== null)) {
+        const merged = Array.from({ length: total }, (_, i) => (retry.idx.includes(i) ? Math.max(retry.before[i] ?? 0, next[i]) : next[i]));
+        setScores(merged);
+        onRevise?.({ rounds: merged });
+      } else setScores(next);
+      return;
+    }
     setScores(next);
     if (next.filter((x) => x !== undefined && x !== null).length === total && !reported.current) {
       reported.current = true;
       onComplete({ rounds: next });
     }
   };
-  const next = () => setIndex((i) => Math.min(total - 1, i + 1));
-  const prev = () => setIndex((i) => Math.max(0, i - 1));
-  return { index, current, answered: current !== null, answer, next, prev, finished, scores: done?.rounds ?? scores, isLast: index === total - 1 };
+  const next = () => setIndex((i) => (retry ? retry.idx.find((x) => x > i) ?? i : Math.min(total - 1, i + 1)));
+  const prev = () => setIndex((i) => (retry ? [...retry.idx].reverse().find((x) => x < i) ?? i : Math.max(0, i - 1)));
+  const startRetry = (idx: number[]) => {
+    const before = [...(done?.rounds ?? scores)];
+    setRetry({ idx, before });
+    setScores(before.map((s, i) => (idx.includes(i) ? CLEARED : s)));
+    setIndex(idx[0]);
+    setRetried(true);
+  };
+  const finishRetry = () => setRetry(null);
+  return {
+    index,
+    current,
+    answered: current !== null,
+    answer,
+    next,
+    prev,
+    finished,
+    scores: retry ? scores : done?.rounds ?? scores,
+    isLast: retry ? index === retry.idx[retry.idx.length - 1] : index === total - 1,
+    isFirst: retry ? index === retry.idx[0] : index === 0,
+    retrying: !!retry,
+    retried,
+    startRetry,
+    finishRetry,
+  };
 }
 
 export function StationHeader({ info }: { info: StationInfo }) {
@@ -168,6 +213,7 @@ export function NextButton({
   onPrev,
   answered,
   isLast,
+  isFirst,
   onNext,
   onFinish,
 }: {
@@ -175,12 +221,14 @@ export function NextButton({
   onPrev: () => void;
   answered: boolean;
   isLast: boolean;
+  /** Defaults to the first round; pass it when only some rounds are being visited. */
+  isFirst?: boolean;
   onNext: () => void;
   onFinish?: () => void;
 }) {
   return (
     <div className="next-row">
-      <button className="btn quiet" disabled={index === 0} onClick={onPrev}>
+      <button className="btn quiet" disabled={isFirst ?? index === 0} onClick={onPrev}>
         ← Prev round
       </button>
       <button className="btn primary" disabled={!answered} onClick={isLast ? onFinish : onNext}>
@@ -196,24 +244,31 @@ export function StationDone({
   kinds,
   onNext,
   nextLabel,
+  onRetry,
+  retryLabel,
+  retried,
 }: {
   scores: number[];
   labels: string[];
   kinds: ('mc' | 'skill')[];
   onNext?: () => void;
   nextLabel?: string;
+  /** Lets a student redo some rounds (the ear-training ones). */
+  onRetry?: () => void;
+  retryLabel?: string;
+  /** Some rounds were retried, so the scores are the best of each student's tries. */
+  retried?: boolean;
 }) {
-  const mcCount = kinds.filter((k) => k === 'mc').length;
-  const mcRight = scores.filter((s, i) => kinds[i] === 'mc' && s >= 100).length;
+  const right = scores.filter((s) => s >= 95).length;
   return (
     <section className="panel done">
       <h3>Station complete</h3>
-      {mcCount > 0 && (
+      {scores.length > 0 && (
         <p className="done-score">
           <span>
-            {mcRight} of {mcCount}
+            {right} of {scores.length}
           </span>{' '}
-          questions right on the first try
+          {retried ? 'questions right (your best tries)' : 'questions right on the first try'}
         </p>
       )}
       <ul className="done-list">
@@ -224,11 +279,18 @@ export function StationDone({
         ))}
       </ul>
       <p className="muted">Your answers are locked in. You can still play with the tools above.</p>
-      {onNext && (
-        <button className="btn primary" onClick={onNext}>
-          {nextLabel ?? 'Go to the next station'}
-        </button>
-      )}
+      <div className="btn-row">
+        {onRetry && (
+          <button className="btn secondary" onClick={onRetry}>
+            {retryLabel ?? 'Try the ear training questions again'}
+          </button>
+        )}
+        {onNext && (
+          <button className="btn primary" onClick={onNext}>
+            {nextLabel ?? 'Go to the next station'}
+          </button>
+        )}
+      </div>
     </section>
   );
 }
@@ -279,4 +341,41 @@ export function LoopButton({ on, onToggle, playLabel, stopLabel = 'Stop' }: { on
 export function useToggle(initial = false): [boolean, () => void, (v: boolean) => void] {
   const [v, setV] = useState(initial);
   return [v, () => setV((x) => !x), setV];
+}
+
+/** Asks before turning in when some stations aren't finished. */
+export function ConfirmTurnIn({ done, total, missing, onKeepWorking, onTurnIn }: { done: number; total: number; missing: string[]; onKeepWorking: () => void; onTurnIn: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current!;
+    if (!d.open) d.showModal();
+    const onCancel = (e: Event) => {
+      e.preventDefault();
+      onKeepWorking();
+    };
+    d.addEventListener('cancel', onCancel);
+    return () => d.removeEventListener('cancel', onCancel);
+  }, [onKeepWorking]);
+  return (
+    <dialog ref={ref} className="modal" aria-labelledby="turnin-title">
+      <h2 id="turnin-title">Turn it in already?</h2>
+      <p>
+        Are you sure you want to turn it in? You’ve only done{' '}
+        <strong>
+          {done} of {total}
+        </strong>{' '}
+        stations.
+      </p>
+      {missing.length > 0 && <p className="muted small">Not finished yet: {missing.join(', ')}.</p>}
+      <p className="muted small">Your progress is saved on this device, so you can also keep working and turn it in later.</p>
+      <div className="modal-actions split-actions">
+        <button className="btn quiet" onClick={onTurnIn}>
+          Turn in anyway
+        </button>
+        <button className="btn primary" onClick={onKeepWorking}>
+          Keep working
+        </button>
+      </div>
+    </dialog>
+  );
 }

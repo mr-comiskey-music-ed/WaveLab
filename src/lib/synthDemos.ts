@@ -34,16 +34,23 @@ export const ROLES: Record<WaveType, Role> = {
     role: 'Big synth leads, brass stabs and strings',
     detail: 'With every harmonic, it’s the brightest of the four. Stack a few slightly out-of-tune saws and you get the famous “supersaw” from dance music.',
     feel: 'held',
+    // A monophonic, rhythmic lead riff in A minor pentatonic (A C D E G), mid-to-high register.
     loop: {
       bpm: 128,
       beats: 8,
       events: [
-        { at: 0, notes: [57, 60, 64], len: 1.4 },
-        { at: 1.5, notes: [57, 60, 64], len: 1.4 },
-        { at: 3, notes: [55, 59, 62], len: 0.9 },
-        { at: 4, notes: [53, 57, 60], len: 1.4 },
-        { at: 5.5, notes: [53, 57, 60], len: 1.4 },
-        { at: 7, notes: [55, 59, 62], len: 0.9 },
+        { at: 0, notes: [76], len: 0.45 },
+        { at: 0.5, notes: [79], len: 0.45 },
+        { at: 1.5, notes: [81], len: 0.45 },
+        { at: 2, notes: [79], len: 0.9 },
+        { at: 3.5, notes: [76], len: 0.45 },
+        { at: 4, notes: [74], len: 0.45 },
+        { at: 4.5, notes: [76], len: 0.45 },
+        { at: 5.5, notes: [79], len: 0.45 },
+        { at: 6, notes: [81], len: 0.45 },
+        { at: 6.5, notes: [79], len: 0.45 },
+        { at: 7, notes: [76], len: 0.45 },
+        { at: 7.5, notes: [74], len: 0.45 },
       ],
     },
   },
@@ -76,10 +83,11 @@ export function playRoleLoop(loopFrom: WaveType, wave: WaveType, onNotes: (m: nu
           release: role.feel === 'short' ? Math.min(0.08, dur * 0.4) : Math.min(0.25, dur * 0.5),
           delay,
         };
-        if (wave === 'sawtooth' && e.notes.length > 1) {
-          // a mini supersaw: two slightly detuned copies
-          audio.play({ ...spec, freq: freq * 1.005, level: spec.level * 0.7 });
-          audio.play({ ...spec, freq: freq * 0.995, level: spec.level * 0.7 });
+        if (wave === 'sawtooth') {
+          // a mini supersaw: two slightly detuned copies (a single lead note needs less level each)
+          const each = spec.level * (e.notes.length > 1 ? 0.7 : 0.55);
+          audio.play({ ...spec, freq: freq * 1.005, level: each });
+          audio.play({ ...spec, freq: freq * 0.995, level: each });
         } else audio.play({ ...spec, freq });
       });
     },

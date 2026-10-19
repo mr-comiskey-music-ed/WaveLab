@@ -16,6 +16,8 @@ const FULL_MATCH = 80;
 /** Peeking at the shape caps the grade for that round. */
 const PEEK_CAP_QUALITY = 0.6;
 const matchQuality = (raw: number) => (raw - 40) / (FULL_MATCH - 40);
+/** The by-ear rounds never grade below this. */
+const MATCH_FLOOR = 60;
 
 /** 0–100: how close two harmonic recipes are, ignoring overall volume. */
 export function matchScore(mine: number[], target: number[]) {
@@ -81,24 +83,43 @@ function makeQuestions(): Q[] {
   return [
     makePoint(),
     makePick(),
-    { kind: 'match', target: [...CLASSIC[classic]], midi: randInt(45, 52), classic },
+    { kind: 'match', target: randomTarget(3), midi: randInt(45, 52) },
     { kind: 'match', target: randomTarget(4), midi: randInt(45, 52) },
-    { kind: 'match', target: randomTarget(6), midi: randInt(45, 52) },
+    { kind: 'match', target: [...CLASSIC[classic]], midi: randInt(45, 52), classic },
   ];
+}
+
+/** A fresh by-ear question with the same number of harmonics as `old`. */
+function freshMatch(old: Extract<Q, { kind: 'match' }>): Q {
+  const midi = randInt(45, 52);
+  if (old.classic) {
+    const classic = pick(['square', 'sawtooth'] as const);
+    return { kind: 'match', target: [...CLASSIC[classic]], midi, classic };
+  }
+  return { kind: 'match', target: randomTarget(old.target.length), midi };
+}
+
+/** Which harmonics a mystery sound uses, in words (the hint). */
+function hintText(target: number[]) {
+  const on = target.map((v, i) => (v > 0 ? i + 1 : 0)).filter(Boolean);
+  const off = target.map((v, i) => (v > 0 ? 0 : i + 1)).filter(Boolean);
+  const list = (xs: number[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : String(xs[0]));
+  return `This sound uses harmonics ${list(on)}${off.length ? `. Harmonic${off.length > 1 ? 's' : ''} ${list(off)} ${off.length > 1 ? 'are' : 'is'} silent, so leave ${off.length > 1 ? 'those faders' : 'that fader'} at zero` : ''}.`;
 }
 
 const LABEL = (q: Q) => (q.kind === 'point' ? 'Add two points' : q.kind === 'pick' ? 'Pick the combined wave' : `Match ${q.target.length} harmonics by ear`);
 
-export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
-  const [qs] = useSaved('add:qs', makeQuestions);
+export function S4Additive({ info, done, onComplete, onRevise, onNext }: StationProps) {
+  const [qs, setQs] = useSaved('add:qs', makeQuestions);
   const [mine, setMine] = useSaved<Record<number, number[]>>('add:mine', () =>
     Object.fromEntries(qs.map((q, i) => [i, q.kind === 'match' ? q.target.map((_, k) => (k === 0 ? 1 : 0)) : []]))
   );
   const [peeked, setPeeked] = useSaved<Record<number, boolean>>('add:peeked', {});
+  const [hinted, setHinted] = useSaved<Record<number, boolean>>('add:hinted', {});
   const [raw, setRaw] = useSaved<Record<number, number>>('add:raw', {});
   const [picked, setPicked] = useSaved<Record<number, string>>('add:picked', {});
   const [summary, setSummary] = useSaved('add:summary', false);
-  const r = useRounds('add', qs.length, done, onComplete);
+  const r = useRounds('add', qs.length, done, onComplete, onRevise);
   const q = qs[r.index];
   const bars = mine[r.index];
   const locked = r.answered;
@@ -136,7 +157,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
     const score = matchScore(bars, q.target);
     setRaw({ ...raw, [r.index]: score });
     const quality = matchQuality(score);
-    r.answer(skillScore(peeked[r.index] ? Math.min(quality, PEEK_CAP_QUALITY) : quality));
+    r.answer(skillScore(peeked[r.index] ? Math.min(quality, PEEK_CAP_QUALITY) : quality, MATCH_FLOOR));
   };
 
   // ---- choice helpers ----
@@ -151,12 +172,34 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
     audio.play({ freq: 110 * b.hz, harmonics: [1], level: b.amp * 0.6, normalize: 'none', duration: 1.4 });
   };
 
+  // Retry: fresh by-ear questions replace the old ones (same rounds, same sizes); the better score is kept.
+  const retryEar = () => {
+    const earIdx = qs.map((x, i) => (x.kind === 'match' ? i : -1)).filter((i) => i >= 0);
+    const without = <T,>(rec: Record<number, T>) => Object.fromEntries(Object.entries(rec).filter(([i]) => !earIdx.includes(+i))) as Record<number, T>;
+    const nextQs = qs.map((x, i) => (x.kind === 'match' && earIdx.includes(i) ? freshMatch(x) : x));
+    setQs(nextQs);
+    setMine({ ...without(mine), ...Object.fromEntries(earIdx.map((i) => [i, (nextQs[i] as Extract<Q, { kind: 'match' }>).target.map((_, k) => (k === 0 ? 1 : 0))])) });
+    setPeeked(without(peeked));
+    setHinted(without(hinted));
+    setRaw(without(raw));
+    r.startRetry(earIdx);
+    setSummary(false);
+  };
+
   const score = r.current;
   return (
     <div className="station">
       <StationHeader info={info} />
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map(LABEL)} kinds={qs.map((x) => (x.kind === 'match' ? 'skill' : 'mc'))} onNext={onNext} />
+        <StationDone
+          scores={r.scores}
+          labels={qs.map(LABEL)}
+          kinds={qs.map((x) => (x.kind === 'match' ? 'skill' : 'mc'))}
+          onNext={onNext}
+          onRetry={retryEar}
+          retryLabel="Try the ear training questions again"
+          retried={r.retried}
+        />
       ) : (
         <Section title="Check yourself" note="First, waveform addition. Then rebuild sounds from sine waves using your ears.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
@@ -281,6 +324,11 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   <button className="btn primary" onClick={lockIn}>
                     Lock in my match
                   </button>
+                  {!hinted[r.index] && (
+                    <button className="btn secondary" onClick={() => setHinted({ ...hinted, [r.index]: true })}>
+                      Hint
+                    </button>
+                  )}
                   {!peeked[r.index] && (
                     <button className="btn quiet" onClick={() => setPeeked({ ...peeked, [r.index]: true })}>
                       Peek at the mystery shape (you'll get less credit this round)
@@ -288,6 +336,7 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
                   )}
                 </div>
               )}
+              {!locked && hinted[r.index] && <p className="hint-box">{hintText(q.target)}</p>}
               {locked && score !== null && (
                 <>
                   <Feedback ok={raw[r.index] >= FULL_MATCH ? true : raw[r.index] >= 60 ? 'partial' : false}>
@@ -312,7 +361,18 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
             </>
           )}
 
-          <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+          <NextButton
+            index={r.index}
+            isFirst={r.isFirst}
+            onPrev={r.prev}
+            answered={r.answered}
+            isLast={r.isLast}
+            onNext={r.next}
+            onFinish={() => {
+              r.finishRetry();
+              setSummary(true);
+            }}
+          />
         </Section>
       )}
 
@@ -335,10 +395,18 @@ export function S4Additive({ info, done, onComplete, onNext }: StationProps) {
           Additive synthesis builds a sound up from sine waves. Most synths work the other way around: start with a harmonic-rich wave like a saw or square, then use a filter to take harmonics
           away. That’s called <strong>subtractive synthesis</strong>.
         </p>
-        <a className="btn secondary" href="https://synthlab.mrcomiskey.com" target="_blank" rel="noopener">
+        <a className="btn synthlab-link" href="https://synthlab.mrcomiskey.com" target="_blank" rel="noopener">
           Try subtractive synthesis in SynthLab
         </a>
       </section>
+
+      {onNext && (
+        <div className="page-next">
+          <button className="btn primary" onClick={onNext}>
+            Go to the next station
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,18 +46,27 @@ const SN_BLEND = blendFromUrl('sn', 0.5);
 
 function makeRounds(): Round[] {
   return [
+    busRound(), // most students ride a bus, and it's the easiest to set up, so it goes first
     { kind: 'bass', base: rand(3.5, 6) },
     { kind: 'snare' },
     { kind: 'overhead', leftX: Math.round(rand(45, 85)), startX: Math.round(rand(220, 290)) },
-    busRound(),
   ];
 }
+
+/** Overhead placement: under 4 cm apart is right, 4 to 8 cm is close, anything farther is wrong. */
+export function overheadScore(cmApart: number) {
+  if (cmApart < 4) return 100;
+  if (cmApart < 8) return Math.round(90 - (cmApart - 4) * 2.5); // 90 down to 80: "Close"
+  return Math.round(60 - Math.min(10, (cmApart - 8) * 1.25)); // 60 down to 50: wrong
+}
+
+type Snap = { snareFlip: boolean; micX: number; busFlip: boolean };
 
 const TITLES: Record<Round['kind'], string> = {
   bass: 'Bass: line up the DI and the amp mic',
   snare: 'Snare: top and bottom mics',
   overhead: 'Drum overheads: place the mics',
-  train: 'Noise-cancelling headphones on a bus',
+  train: 'How do noise-cancelling headphones work?',
 };
 
 /** Repeats a sound every `everyMs`, reading the latest settings each time. */
@@ -87,10 +96,15 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
 
   // ---------- challenge ----------
   const [rounds] = useSaved('phase4:rounds', makeRounds);
+  // Look rounds up by kind, not position: students who started earlier have them saved in the old order.
+  const bassRound = rounds.find((x): x is Extract<Round, { kind: 'bass' }> => x.kind === 'bass');
+  const ohRound = rounds.find((x): x is Extract<Round, { kind: 'overhead' }> => x.kind === 'overhead') ?? { leftX: 60, startX: 250 };
+  const busRoundData = rounds.find((x): x is Extract<Round, { kind: 'train' }> => x.kind === 'train');
   const [nudge, setNudge] = useSaved<number>('phase4:nudge', 0);
   const [snareFlip, setSnareFlip] = useSaved<boolean>('phase4:snareFlip', false);
-  const [micX, setMicX] = useSaved<number>('phase4:micX', () => (rounds[2] as { startX: number }).startX);
-  const [busDelay, setBusDelay] = useSaved<number>('phase4:busDelay', () => (rounds[3] as { startMs: number }).startMs);
+  const [micX, setMicX] = useSaved<number>('phase4:micX', () => ohRound.startX);
+  const [busDelay, setBusDelay] = useSaved<number>('phase4:busDelay', () => busRoundData?.startMs ?? 2);
+  const [snaps, setSnaps] = useSaved<Record<number, Snap>>('phase4:snaps', {});
   const [busFlip, setBusFlip] = useSaved<boolean>('phase4:busFlip', false);
   const [summary, setSummary] = useSaved('phase4:summary', false);
   const r = useRounds('phase4', rounds.length, done, onComplete);
@@ -98,7 +112,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const locked = r.answered;
 
   // Round 1: bass DI vs amp mic in a DAW
-  const bassBase = rounds[0].kind === 'bass' ? rounds[0].base : 4;
+  const bassBase = bassRound?.base ?? 4;
   const bassOffset = bassBase + nudge;
   const bassLanes = useMemo<DawLane[]>(
     () => [
@@ -109,7 +123,6 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   );
 
   // Round 3: overheads
-  const ohRound = rounds[2].kind === 'overhead' ? rounds[2] : { leftX: 60, startX: 250 };
   const dL = distanceToSnare(ohRound.leftX);
   const dR = distanceToSnare(micX);
   const ohOffsetMs = (dR - dL) / SPEED_OF_SOUND;
@@ -117,7 +130,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
 
   // Round 4: bus hum + headphone anti-noise
   const busWave = (t: number, shift = 0) => 0.6 * Math.sin(2 * Math.PI * BUS_HZ * t + shift) + 0.3 * Math.sin(2 * Math.PI * 2 * BUS_HZ * t + 2 * shift);
-  const busTarget = rounds[3].kind === 'train' ? rounds[3].targetMs : 2;
+  const busTarget = busRoundData?.targetMs ?? 2;
   const busOff = busDelay - busTarget; // 0 = the headphones' delay matches the bus noise
   const busShift = -2 * Math.PI * BUS_HZ * (busOff / 1000); // a delay shows up as a phase lag
   const busSign = busFlip ? -1 : 1;
@@ -178,7 +191,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       case 'snare':
         return snareFlip ? 1 : 0;
       case 'overhead':
-        return 1 - Math.abs(dR - dL) / 12;
+        return (overheadScore(Math.abs(dR - dL)) - 50) / 50;
       case 'train':
         return busFlip ? 1 - Math.abs(busOff) / 1.2 : 0;
     }
@@ -186,19 +199,25 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
 
   const lockIn = () => {
     setOn(false);
+    // remember what the answer was, so the explanation doesn't change if they keep playing with the controls
+    setSnaps({ ...snaps, [r.index]: { snareFlip, micX, busFlip } });
     r.answer(rd.kind === 'snare' ? mcScore(snareFlip) : skillScore(quality()));
   };
 
   const feedback = () => {
     const s = r.current ?? 50;
     const ok = s >= 95 ? true : s >= 75 ? 'partial' : false;
+    const snap = snaps[r.index];
+    const flippedSnare = snap?.snareFlip ?? snareFlip;
+    const flippedBus = snap?.busFlip ?? busFlip;
+    const apart = Math.abs(distanceToSnare(snap?.micX ?? micX) - dL);
     const text = {
       bass: 'The DI signal arrives instantly, but the amp mic hears the sound a few milliseconds later, after it travels through the amp and the air. Lining the regions up in the DAW puts them back in phase, so the low end gets bigger instead of thinner. (The mix is the real DI and amp mic from a session.)',
-      snare: snareFlip
+      snare: flippedSnare
         ? 'Exactly. The two mics face opposite directions, so one hears a push while the other hears a pull. Flipping the bottom mic’s polarity makes them push together, and the snare gets its body back.'
         : 'The bottom mic needed its polarity flipped. Because the mics face opposite directions, one hears a push while the other hears a pull. The Ø button turns that around so they add up.',
-      overhead: `When both overheads are the same distance from the snare, its sound reaches them at the same moment and they stay in phase. Yours ended up ${Math.round(Math.abs(dR - dL))} cm different. Engineers often check this with a tape measure or a mic cable.`,
-      train: busFlip
+      overhead: `When both overheads are the same distance from the snare, its sound reaches them at the same moment and they stay in phase. Yours ended up ${apart.toFixed(1)} cm different. Within 4 cm counts as in phase, and 4 to 8 cm is close. Engineers often check this with a tape measure or a mic cable.`,
+      train: flippedBus
         ? 'The headphones play the bus’s exact opposite, and the closer their timing, the more the deep rumble cancels. That’s phase cancellation used on purpose. The hiss and rattle still come through: they’re high and constantly changing, too fast for the headphones to copy and flip in time. Noise cancelling works best on low, steady sounds like engines.'
         : 'The headphones also needed their polarity flipped. Without the Ø flip, they add a second copy of the rumble instead of cancelling it. Flip it, then fine-tune the timing, and the engine hum drops away.',
     }[rd.kind];
@@ -260,7 +279,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
               <DawView lanes={bassLanes} windowMs={30} freq={BASS_HZ} decayMs={30} label="The bass DI and amp mic tracks and their mix" />
               <label className="slider wide">
                 <span>Slide the amp mic region (earlier ← → later)</span>
-                <input type="range" min={-8} max={3} step={0.1} value={nudge} disabled={locked} onChange={(e) => setNudge(+e.target.value)} />
+                <input type="range" min={-8} max={3} step={0.1} value={nudge} onChange={(e) => setNudge(+e.target.value)} />
               </label>
             </>
           )}
@@ -312,7 +331,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
               />
               <label className="slider wide">
                 <span>Move the right overhead (OH R) left ← → right</span>
-                <input type="range" min={130} max={310} step={1} value={micX} disabled={locked} onChange={(e) => setMicX(+e.target.value)} />
+                <input type="range" min={130} max={310} step={1} value={micX} onChange={(e) => setMicX(+e.target.value)} />
               </label>
             </>
           )}
@@ -345,7 +364,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
               />
               <label className="slider wide">
                 <span>Headphone delay: {busDelay.toFixed(2)} ms</span>
-                <input type="range" min={0} max={6} step={0.05} value={busDelay} disabled={locked} onChange={(e) => setBusDelay(+e.target.value)} />
+                <input type="range" min={0} max={6} step={0.05} value={busDelay} onChange={(e) => setBusDelay(+e.target.value)} />
               </label>
               <p className="hint">The drawing shows just the rumble’s two lowest tones. The recording has many more, and you’ll hear the hiss no matter what: headphones can’t cancel that.</p>
             </>
@@ -353,21 +372,22 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
 
           <div className="btn-row">
             {rd.kind === 'train' && (
-              <button className={`btn ${busFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={busFlip} disabled={locked} onClick={() => setBusFlip(!busFlip)}>
+              <button className={`btn ${busFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={busFlip} onClick={() => setBusFlip(!busFlip)}>
                 Ø Headphone polarity: {busFlip ? 'flipped' : 'normal'}
               </button>
             )}
             {rd.kind === 'snare' && (
-              <button className={`btn ${snareFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={snareFlip} disabled={locked} onClick={() => setSnareFlip(!snareFlip)}>
+              <button className={`btn ${snareFlip ? 'on-toggle' : 'secondary'} fixed-w`} aria-pressed={snareFlip} onClick={() => setSnareFlip(!snareFlip)}>
                 Ø Bottom mic polarity: {snareFlip ? 'flipped' : 'normal'}
               </button>
             )}
             <LoopButton on={on} onToggle={toggle} playLabel={{ bass: 'Play the bass', snare: 'Play the snare', overhead: 'Play the overheads', train: 'Play the bus' }[rd.kind]} />
             <button className="btn primary" disabled={locked} onClick={lockIn}>
-              Lock it in
+              {locked ? 'Locked in' : 'Lock it in'}
             </button>
           </div>
           <FeedbackSlot tall waiting="When you lock it in, you'll see how you did here.">{locked && feedback()}</FeedbackSlot>
+          {locked && <p className="hint">Your answer is locked in, but keep exploring: play the audio and move the controls to hear what changes.</p>}
           <NextButton
             index={r.index}
             onPrev={() => {

@@ -1052,6 +1052,12 @@ kbd {
   justify-content: flex-end;
 }
 
+.modal-actions.split-actions {
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .track .fill {
     transition: none;
@@ -1311,6 +1317,27 @@ kbd {
   font-size: 32px;
 }
 
+.scene.bus-scene {
+  max-width: 520px;
+}
+
+.rumble-flow {
+  stroke-dasharray: 8 5;
+  animation: rumble-march 0.7s linear infinite;
+}
+
+@keyframes rumble-march {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rumble-flow {
+    animation: none;
+  }
+}
+
 .scene {
   display: block;
   width: 100%;
@@ -1335,19 +1362,6 @@ kbd {
 
 .wave-icon {
   flex: none;
-}
-
-.where-heard {
-  border-top: 1px solid var(--grid);
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.where-heard p {
-  margin: 0;
-  font-size: 16px;
 }
 
 .reach {
@@ -1385,6 +1399,31 @@ kbd {
 .next-idea .btn {
   align-self: flex-start;
   text-decoration: none;
+}
+
+/* Same amber as the "Close" answers, so it reads as an optional side trip, not the next step */
+.btn.synthlab-link {
+  background: var(--part-bg);
+  color: var(--part);
+  border-color: #d9a441;
+}
+
+.btn.synthlab-link:hover {
+  background: #f6e4bd;
+}
+
+.page-next {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hint-box {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--part-bg);
+  border: 1px solid #d9a441;
+  font-size: 16px;
 }
 
 /* ---------- Hammond organ ---------- */

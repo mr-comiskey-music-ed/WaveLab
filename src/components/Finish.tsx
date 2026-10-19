@@ -67,7 +67,7 @@ export function Finish({ results, capstone, startedAt, assigned, onGoTo, onCopie
         </table>
         {missing.length > 0 ? (
           <p className="warn">
-            {missing.length === 1 ? 'One station isn’t' : `${missing.length} stations aren’t`} finished yet. Your progress is saved on this Chromebook, so you can come back and finish. Only make a code now if
+            {missing.length === 1 ? 'One station isn’t' : `${missing.length} stations aren’t`} finished yet. Your progress is saved on this device, so you can come back and finish. Only make a code now if
             your teacher asked you to turn in what you have.
           </p>
         ) : (
@@ -103,7 +103,7 @@ export function Finish({ results, capstone, startedAt, assigned, onGoTo, onCopie
         <button
           className="link quiet-link"
           onClick={() => {
-            if (window.confirm('Start over? This erases all your answers on this Chromebook.')) onStartOver();
+            if (window.confirm('Start over? This erases all your answers on this device.')) onStartOver();
           }}
         >
           Start over from scratch

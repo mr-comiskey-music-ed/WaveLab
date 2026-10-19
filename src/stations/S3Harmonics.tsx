@@ -3,13 +3,13 @@ import { audio } from '../lib/audio';
 import { harmonicValue, midiToFreq, peakOf, pick, randInt, recipe, shuffle, WaveType, WAVE_NAMES, WAVE_TYPES } from '../lib/waves';
 import { WavePlot } from '../components/WavePlot';
 import { HarmonicBars } from '../components/HarmonicBars';
-import { Choices, Feedback, FeedbackSlot, LoopButton, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
+import { Choices, Feedback, FeedbackSlot, NextButton, PlayButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
 import { useSaved } from '../lib/persist';
 import { mcScore } from '../lib/stations';
 import type { StationProps } from './types';
 import { WaveIcon } from '../components/WaveIcon';
 import { Piano } from '../components/Piano';
-import { playRoleLoop, REACH_FOR, ROLES } from '../lib/synthDemos';
+import { playRoleLoop, REACH_FOR } from '../lib/synthDemos';
 
 /** Short descriptions in The Pudding's own terms. */
 const ABOUT: Record<WaveType, string> = {
@@ -142,13 +142,12 @@ const LABEL: Record<Q['kind'], string> = {
   which: 'Which harmonics',
 };
 
-export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
+export function S3Harmonics({ info, done, onComplete, onRevise, onNext }: StationProps) {
   const [refWave, setRefWave] = useState<WaveType>('sine');
-  const riffPlayer = useRiffPlayer();
-  const [qs] = useSaved('harm:qs', makeQuestions);
+  const [qs, setQs] = useSaved('harm:qs', makeQuestions);
   const [picked, setPicked] = useSaved<Record<number, string>>('harm:picked', {});
   const [summary, setSummary] = useSaved('harm:summary', false);
-  const r = useRounds('harm', qs.length, done, onComplete);
+  const r = useRounds('harm', qs.length, done, onComplete, onRevise);
   const q = qs[r.index];
   const choice = picked[r.index] ?? null;
   const refFn = useMemo(() => shape(refWave), [refWave]);
@@ -158,6 +157,16 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
   const play = (wave: WaveType, midi: number) => {
     audio.stopAll();
     audio.play({ freq: midiToFreq(midi), harmonics: recipe(wave, 40), level: 0.55, duration: 1.4 });
+  };
+
+  // Retry: fresh ear-training questions replace the old ones (same rounds), and the better score is kept.
+  const retryEar = () => {
+    const earIdx = qs.map((x, i) => (x.kind === 'ear' ? i : -1)).filter((i) => i >= 0);
+    const fresh = shuffle([...WAVE_TYPES]);
+    setQs(qs.map((x, i) => (earIdx.includes(i) ? ({ kind: 'ear', wave: fresh[earIdx.indexOf(i) % fresh.length], midi: randInt(43, 62) } as Q) : x)));
+    setPicked(Object.fromEntries(Object.entries(picked).filter(([i]) => !earIdx.includes(+i))));
+    r.startRetry(earIdx);
+    setSummary(false);
   };
 
   const correct = q.kind === 'math' ? String(q.root * q.n) : q.kind === 'which' ? whichAnswer(q.wave) : q.wave;
@@ -178,7 +187,6 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
               className={w === refWave ? 'on' : ''}
               aria-pressed={w === refWave}
               onClick={() => {
-                riffPlayer.stop();
                 setRefWave(w);
                 play(w, 48);
               }}
@@ -195,26 +203,20 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
         <p className="about">
           <strong>{WAVE_NAMES[refWave]}:</strong> {ABOUT[refWave]}
         </p>
-        <div className="where-heard">
-          <p>
-            <strong>Where you’ve heard it:</strong> {ROLES[refWave].role}. {ROLES[refWave].detail}
-          </p>
-          <div className="btn-row">
-            <PlayButton onClick={() => play(refWave, 48)}>Play one note</PlayButton>
-            <LoopButton
-              on={riffPlayer.playing === 'ref'}
-              onToggle={() => (riffPlayer.playing === 'ref' ? riffPlayer.stop() : riffPlayer.play('ref', refWave, refWave))}
-              playLabel="Hear it in a riff"
-            />
-          </div>
-          {riffPlayer.playing === 'ref' && <Piano lo={33} hi={84} lit={riffPlayer.lit} label="Notes playing" showNames={false} />}
-        </div>
       </Section>
 
       <ReachFor />
 
       {summary ? (
-        <StationDone scores={r.scores} labels={qs.map((x) => LABEL[x.kind])} kinds={qs.map(() => 'mc' as const)} onNext={onNext} />
+        <StationDone
+          scores={r.scores}
+          labels={qs.map((x) => LABEL[x.kind])}
+          kinds={qs.map(() => 'mc' as const)}
+          onNext={onNext}
+          onRetry={retryEar}
+          retryLabel="Try the ear training questions again"
+          retried={r.retried}
+        />
       ) : (
         <Section title="Check yourself" note="One try per round. Ear rounds use a different note each time, so listen for the tone color, not the pitch.">
           <RoundBar index={r.index} total={qs.length} scores={r.scores} />
@@ -284,7 +286,18 @@ export function S3Harmonics({ info, done, onComplete, onNext }: StationProps) {
             </div>
           )}
 </div>
-                    <NextButton index={r.index} onPrev={r.prev} answered={r.answered} isLast={r.isLast} onNext={r.next} onFinish={() => setSummary(true)} />
+                    <NextButton
+            index={r.index}
+            isFirst={r.isFirst}
+            onPrev={r.prev}
+            answered={r.answered}
+            isLast={r.isLast}
+            onNext={r.next}
+            onFinish={() => {
+              r.finishRetry();
+              setSummary(true);
+            }}
+          />
         </Section>
       )}
     </div>

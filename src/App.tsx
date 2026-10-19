@@ -7,7 +7,7 @@ import { shuffle } from './lib/waves';
 import { openSite, SplitHelp } from './components/SplitHelp';
 import { Finish } from './components/Finish';
 import { TeacherGrader } from './components/TeacherGrader';
-import { ReadFirstModal } from './components/ui';
+import { ConfirmTurnIn, ReadFirstModal } from './components/ui';
 import { S1Reading } from './stations/S1Reading';
 import { S2Sound } from './stations/S2Sound';
 import { S3Harmonics } from './stations/S3Harmonics';
@@ -147,10 +147,23 @@ export default function App() {
     setResults((prev) => (prev[id] ? prev : { ...prev, [id]: r }));
   };
 
+  // A retried station replaces its saved result (the station keeps the better score of each round).
+  const revise = (id: StationId) => (r: StationResult) => {
+    copiedRef.current = false;
+    setResults((prev) => ({ ...prev, [id]: r }));
+  };
+
   const goStation = (id: StationId) => setView({ kind: 'station', id });
   const isDone = (id: StationId) => (id === 'make' ? capstoneComplete(capstone) : !!results[id]);
   const doneCount = MY_STATIONS.filter((s) => isDone(s.id)).length;
   const allDone = doneCount === MY_STATIONS.length;
+  const [confirmTurnIn, setConfirmTurnIn] = useState(false);
+  const keepWorking = useCallback(() => setConfirmTurnIn(false), []);
+  /** Every way of turning in goes through here, so unfinished work always gets a "are you sure?". */
+  const requestFinish = () => {
+    if (view.kind === 'finish' || allDone) setView({ kind: 'finish' });
+    else setConfirmTurnIn(true);
+  };
   const currentInfo = view.kind === 'station' ? MY_STATIONS.find((s) => s.id === view.id)! : null;
   const showReadFirst = !!currentInfo && !showHelp && !seen.includes(currentInfo.id);
   const closeReadFirst = useCallback(() => {
@@ -256,7 +269,7 @@ export default function App() {
                 copiedRef.current = false;
                 setCapstone(c);
               }}
-              onFinish={() => setView({ kind: 'finish' })}
+              onFinish={requestFinish}
             />
           ) : (
             (() => {
@@ -267,7 +280,8 @@ export default function App() {
                   info={currentInfo}
                   done={results[currentInfo.id]}
                   onComplete={complete(currentInfo.id)}
-                  onNext={nextStation ? () => goStation(nextStation.id) : () => setView({ kind: 'finish' })}
+                  onRevise={revise(currentInfo.id)}
+                  onNext={nextStation ? () => goStation(nextStation.id) : requestFinish}
                 />
               );
             })()
@@ -294,7 +308,7 @@ export default function App() {
         <span className="progress">
           {doneCount} of {MY_STATIONS.length} {MY_STATIONS.length === 1 ? 'station' : 'stations'} done. Your progress saves automatically.
         </span>
-        <button className={`btn ${allDone ? 'primary' : 'quiet'}`} onClick={() => setView({ kind: 'finish' })}>
+        <button className={`btn ${allDone ? 'primary' : 'quiet'}`} onClick={requestFinish}>
           {allDone ? 'Get my code' : 'Turn in / get code'}
         </button>
       </footer>
@@ -302,6 +316,18 @@ export default function App() {
         <a href="?teacher">Teacher tools</a>
       </p>
 
+      {confirmTurnIn && (
+        <ConfirmTurnIn
+          done={doneCount}
+          total={MY_STATIONS.length}
+          missing={MY_STATIONS.filter((s) => !isDone(s.id)).map((s) => s.title)}
+          onKeepWorking={keepWorking}
+          onTurnIn={() => {
+            setConfirmTurnIn(false);
+            setView({ kind: 'finish' });
+          }}
+        />
+      )}
       {showHelp && <SplitHelp onClose={closeHelp} />}
       {showReadFirst && currentInfo && <ReadFirstModal key={currentInfo.id} info={currentInfo} onClose={closeReadFirst} />}
     </div>
