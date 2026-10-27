@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio, ClipPlayer } from '../lib/audio';
 import { rand } from '../lib/waves';
 import { useSaved } from '../lib/persist';
-import { mcScore, skillScore } from '../lib/stations';
+import { BASS_HZ, busShiftOf, busWave, PHASE_TITLES, phaseGrade, phaseParts, PhaseKind, PhaseSetup, SPEED_OF_SOUND } from '../lib/phase';
 import { DawLane, DawView, DRUM_HZ } from '../components/DawView';
 import { distanceToSnare, KitView } from '../components/KitView';
 import { HeadphoneScene, SnareSideView } from '../components/PhaseScenes';
@@ -10,10 +10,6 @@ import { WavePlot } from '../components/WavePlot';
 import { Feedback, FeedbackSlot, LoopButton, NextButton, RoundBar, Section, StationDone, StationHeader, useRounds } from '../components/ui';
 import type { StationProps } from './types';
 
-const SPEED_OF_SOUND = 34.3; // cm per ms
-const BASS_HZ = 82.4; // low E on a bass
-const BUS_HZ = 60; // the idle rumble in the drawing (the real recording has many more frequencies)
-const CLIP = (name: string) => `./audio/${name}.wav`;
 const RAD = Math.PI / 180;
 
 type Round =
@@ -31,19 +27,6 @@ function busRound(): Round {
   return { kind: 'train', startMs, targetMs };
 }
 
-/**
- * Real overhead rooms are so reverberant that a late mic barely sounds wrong. To make the problem easier to hear,
- * the right mic is partly mixed with the left one (as if more of the direct snare reached both mics).
- * Try ?oh=0 (pure recording) up to ?oh=1 (same sound in both) in the address bar to compare.
- */
-const blendFromUrl = (key: string, fallback: number) => {
-  const v = parseFloat(new URLSearchParams(location.search).get(key) ?? '');
-  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback;
-};
-const OH_BLEND = blendFromUrl('oh', 0.48);
-/** Same idea for the snare: the bottom mic is partly blended with the top, so a flipped polarity cancels more of the sound. Try ?sn=0 to 1. */
-const SN_BLEND = blendFromUrl('sn', 0.5);
-
 function makeRounds(): Round[] {
   return [
     busRound(), // most students ride a bus, and it's the easiest to set up, so it goes first
@@ -53,21 +36,10 @@ function makeRounds(): Round[] {
   ];
 }
 
-/** Overhead placement: under 4 cm apart is right, 4 to 8 cm is close, anything farther is wrong. */
-export function overheadScore(cmApart: number) {
-  if (cmApart < 4) return 100;
-  if (cmApart < 8) return Math.round(90 - (cmApart - 4) * 2.5); // 90 down to 80: "Close"
-  return Math.round(60 - Math.min(10, (cmApart - 8) * 1.25)); // 60 down to 50: wrong
-}
+/** What the controls said at the moment a round was locked in (nudge and busDelay are missing in older saves). */
+type Snap = { snareFlip: boolean; micX: number; busFlip: boolean; nudge?: number; busDelay?: number };
 
-type Snap = { snareFlip: boolean; micX: number; busFlip: boolean };
-
-const TITLES: Record<Round['kind'], string> = {
-  bass: 'Bass: line up the DI and the amp mic',
-  snare: 'Snare: top and bottom mics',
-  overhead: 'Drum overheads: place the mics',
-  train: 'How do noise-cancelling headphones work?',
-};
+const TITLES: Record<PhaseKind, string> = PHASE_TITLES;
 
 /** Repeats a sound every `everyMs`, reading the latest settings each time. */
 function useLoop(play: () => void, everyMs: number) {
@@ -129,41 +101,16 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   const ohShift = 2 * Math.PI * DRUM_HZ * (ohOffsetMs / 1000);
 
   // Round 4: bus hum + headphone anti-noise
-  const busWave = (t: number, shift = 0) => 0.6 * Math.sin(2 * Math.PI * BUS_HZ * t + shift) + 0.3 * Math.sin(2 * Math.PI * 2 * BUS_HZ * t + 2 * shift);
   const busTarget = busRoundData?.targetMs ?? 2;
   const busOff = busDelay - busTarget; // 0 = the headphones' delay matches the bus noise
-  const busShift = -2 * Math.PI * BUS_HZ * (busOff / 1000); // a delay shows up as a phase lag
+  const setup: PhaseSetup = { bassBase, nudge, snareFlip, leftX: ohRound.leftX, micX, busTarget, busDelay, busFlip };
+  const busShift = busShiftOf(setup); // a delay shows up as a phase lag
   const busSign = busFlip ? -1 : 1;
 
   // The real recordings, looped and mixed live. Sliders and buttons change the mix while it plays.
   const [on, setOn] = useState(false);
   const player = useRef<ClipPlayer | null>(null);
-  const parts = (): { url: string; delayMs: number; gain: number }[] => {
-    switch (rd.kind) {
-      case 'bass':
-        return [
-          { url: CLIP('bass-di'), delayMs: Math.max(0, -bassOffset), gain: 0.9 },
-          { url: CLIP('bass-mic'), delayMs: Math.max(0, bassOffset), gain: 0.9 },
-        ];
-      case 'snare':
-        return [
-          { url: CLIP('snare-top'), delayMs: 0, gain: 0.9 },
-          { url: CLIP('snare-bottom'), delayMs: 0, gain: (snareFlip ? 0.9 : -0.9) * (1 - SN_BLEND) },
-          { url: CLIP('snare-top'), delayMs: 0, gain: (snareFlip ? 0.9 : -0.9) * SN_BLEND },
-        ];
-      case 'overhead':
-        return [
-          { url: CLIP('oh-left'), delayMs: Math.max(0, -ohOffsetMs), gain: 0.9 },
-          { url: CLIP('oh-right'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 * (1 - OH_BLEND) },
-          { url: CLIP('oh-left'), delayMs: Math.max(0, ohOffsetMs), gain: 0.9 * OH_BLEND },
-        ];
-      case 'train':
-        return [
-          { url: CLIP('bus-hum'), delayMs: busTarget, gain: 0.9 },
-          { url: CLIP('bus-hum-low'), delayMs: busDelay, gain: busSign * 0.9 },
-        ];
-    }
-  };
+  const parts = () => phaseParts(rd.kind, setup);
   const partsRef = useRef(parts);
   partsRef.current = parts;
   useEffect(() => {
@@ -183,25 +130,12 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
   }, [live]);
   const toggle = () => setOn((v) => !v);
 
-  const quality = () => {
-    switch (rd.kind) {
-      case 'bass':
-        // within half a millisecond is invisible on the screen and inaudible, so it counts as lined up
-        return 1 - Math.max(0, Math.abs(bassOffset) - 0.5) / 2.5;
-      case 'snare':
-        return snareFlip ? 1 : 0;
-      case 'overhead':
-        return (overheadScore(Math.abs(dR - dL)) - 50) / 50;
-      case 'train':
-        return busFlip ? 1 - Math.abs(busOff) / 1.2 : 0;
-    }
-  };
-
   const lockIn = () => {
     setOn(false);
     // remember what the answer was, so the explanation doesn't change if they keep playing with the controls
-    setSnaps({ ...snaps, [r.index]: { snareFlip, micX, busFlip } });
-    r.answer(rd.kind === 'snare' ? mcScore(snareFlip) : skillScore(quality()));
+    // (and so the teacher can see exactly where they left each control)
+    setSnaps({ ...snaps, [r.index]: { snareFlip, micX, busFlip, nudge, busDelay } });
+    r.answer(phaseGrade(rd.kind, setup));
   };
 
   const feedback = () => {

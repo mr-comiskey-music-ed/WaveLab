@@ -100,7 +100,7 @@ type Q =
   | { kind: 'idea'; idea: number; order: number[] };
 
 /** Big-idea questions about how sound travels (from Part 2 of the Waveforms site). */
-const IDEAS: { q: string; options: string[]; why: string }[] = [
+export const IDEAS: { q: string; options: string[]; why: string }[] = [
   {
     q: 'Does a single air molecule travel all the way from the speaker to your ear?',
     options: [
@@ -174,7 +174,7 @@ function makeQuestions(): Q[] {
   return [cones[0], ideas[0], cones[1], ideas[1], cones[2], ideas[2]];
 }
 
-const CONE_OPTIONS = [
+export const CONE_OPTIONS = [
   { id: 'out', label: 'Pushed out, toward you' },
   { id: 'rest', label: 'In the middle (at rest)' },
   { id: 'in', label: 'Pulled in, away from you' },

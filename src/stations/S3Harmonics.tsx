@@ -25,7 +25,7 @@ const shape = (type: WaveType) => {
   return (t: number) => (0.95 * harmonicValue(amps, t)) / p;
 };
 
-const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+export const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 type Q =
   | { kind: 'ear'; wave: WaveType; midi: number }
@@ -33,7 +33,7 @@ type Q =
   | { kind: 'math'; root: number; n: number; options: number[] }
   | { kind: 'which'; wave: Exclude<WaveType, 'sine'> };
 
-const WHICH_OPTIONS = [
+export const WHICH_OPTIONS = [
   { id: 'all', label: 'Every harmonic: 1st, 2nd, 3rd, 4th...' },
   { id: 'odd', label: 'Odd harmonics only: 1st, 3rd, 5th, 7th...' },
   { id: 'even', label: 'Even harmonics only: 2nd, 4th, 6th...' },

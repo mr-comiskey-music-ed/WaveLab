@@ -1560,3 +1560,358 @@ kbd {
 
 .choice-plots.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .q-stage.stage-chord { min-height: 530px; }
+
+/* ---------- teacher: a student's full work + class question table ---------- */
+.rv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rv-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.rv-top h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.rv-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--part-bg);
+  font-size: 15px;
+}
+
+.rv-look {
+  background: #f7f9fc;
+  border: 1px solid var(--grid-strong);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.rv-look h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.rv-look ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  font-size: 15px;
+}
+
+.rv-look p {
+  margin: 0;
+}
+
+.rv-score {
+  display: inline-block;
+  min-width: 36px;
+  padding: 1px 6px;
+  text-align: center;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-score.good {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.rv-score.part {
+  background: var(--part-bg);
+  color: var(--part);
+}
+
+.rv-score.miss {
+  background: var(--miss-bg);
+  color: var(--miss);
+}
+
+.rv-station {
+  border: 1px solid var(--grid-strong);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.rv-station.empty {
+  padding: 10px 12px;
+}
+
+.rv-station > summary,
+.rv-round > details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.rv-station > summary::-webkit-details-marker,
+.rv-round > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rv-station > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+}
+
+.rv-station > summary::before,
+.rv-round > details > summary::before {
+  content: '▸';
+  color: var(--muted);
+  font-size: 13px;
+  width: 12px;
+}
+
+.rv-station[open] > summary::before,
+.rv-round > details[open] > summary::before {
+  content: '▾';
+}
+
+.rv-st-title {
+  font-weight: 700;
+}
+
+.rv-st-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.rv-dots i {
+  width: 14px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--grid);
+}
+
+.rv-dots i.good {
+  background: var(--good);
+}
+
+.rv-dots i.part {
+  background: #d9a441;
+}
+
+.rv-dots i.miss {
+  background: var(--miss);
+}
+
+.rv-rounds {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.rv-round {
+  border-left: 4px solid var(--grid-strong);
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.rv-round.good {
+  border-left-color: var(--good);
+}
+
+.rv-round.part {
+  border-left-color: #d9a441;
+}
+
+.rv-round.miss {
+  border-left-color: var(--miss);
+}
+
+.rv-round > details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+}
+
+.rv-title {
+  flex: 1;
+  font-size: 16px;
+}
+
+.rv-brief {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: right;
+  max-width: 45%;
+}
+
+.rv-body {
+  padding: 2px 14px 14px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-ask {
+  margin: 0;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.rv-line {
+  margin: 0;
+  font-size: 16px;
+}
+
+.rv-lab {
+  display: inline-block;
+  min-width: 112px;
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.rv-hint {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--part-bg);
+  font-size: 15px;
+}
+
+.rv-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.rv-badges {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-badge {
+  font-size: 13px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #e8eef9;
+  color: var(--ink-soft);
+}
+
+.rv-badge.warn-badge {
+  background: var(--part-bg);
+  color: var(--part);
+}
+
+.rv-diffs {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 15px;
+}
+
+.rv-visual,
+.rv-bars {
+  max-width: 560px;
+}
+
+.rv-hardest {
+  margin: 0;
+  font-size: 15px;
+}
+
+.qstats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.qstats th,
+.qstats td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--grid);
+  text-align: left;
+  font-weight: 400;
+}
+
+.q-meter {
+  width: 34%;
+  min-width: 110px;
+}
+
+.meter {
+  display: block;
+  height: 9px;
+  background: var(--grid);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--good);
+}
+
+.meter i.part {
+  background: #d9a441;
+}
+
+.meter i.miss {
+  background: var(--miss);
+}
+
+.qstats .q-pct {
+  width: 52px;
+  text-align: right;
+  font-weight: 700;
+}
+
+.qstats .q-count {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* keep the text readable; only the score chip and left edge carry the colour */
+.rv-round.good,
+.rv-round.part,
+.rv-round.miss {
+  color: var(--ink);
+}
+
+.rv-round .rv-score.good {
+  color: var(--good);
+}
+
+.rv-round .rv-score.part {
+  color: var(--part);
+}
+
+.rv-round .rv-score.miss {
+  color: var(--miss);
+}

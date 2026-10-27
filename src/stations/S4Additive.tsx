@@ -35,6 +35,12 @@ export function matchScore(mine: number[], target: number[]) {
   return Math.round((num / den) * 100);
 }
 
+/** The grade for a locked-in by-ear match: peeking at the shape caps the credit, and these rounds never grade below the floor. */
+export function matchGrade(raw: number, peeked: boolean) {
+  const quality = matchQuality(raw);
+  return skillScore(peeked ? Math.min(quality, PEEK_CAP_QUALITY) : quality, MATCH_FLOOR);
+}
+
 function randomTarget(count: number): number[] {
   for (;;) {
     const t = [1, ...Array.from({ length: count - 1 }, () => pick(LEVELS))];
@@ -156,8 +162,7 @@ export function S4Additive({ info, done, onComplete, onRevise, onNext }: Station
     if (q.kind !== 'match') return;
     const score = matchScore(bars, q.target);
     setRaw({ ...raw, [r.index]: score });
-    const quality = matchQuality(score);
-    r.answer(skillScore(peeked[r.index] ? Math.min(quality, PEEK_CAP_QUALITY) : quality, MATCH_FLOOR));
+    r.answer(matchGrade(score, !!peeked[r.index]));
   };
 
   // ---- choice helpers ----

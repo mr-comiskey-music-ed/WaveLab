@@ -1,3 +1,4 @@
+import { cleanReview, Review } from './review';
 import { Capstone, Results, StationId, STATIONS } from './stations';
 
 const ALL_IDS = STATIONS.map((s) => s.id);
@@ -16,6 +17,8 @@ export interface Submission {
   capstone?: Capstone;
   /** Sections the teacher's link assigned. */
   assigned: StationId[];
+  /** What the student saw and answered in each round. Codes made before this existed don't have it. */
+  review?: Review;
 }
 
 const SALT = 'WAVELAB_PUDDING_COMPANION_2026';
@@ -72,6 +75,8 @@ export async function encodeSubmission(s: Submission): Promise<string> {
     ),
   };
   if (s.assigned.length && s.assigned.length < ALL_IDS.length) packed.x = s.assigned.join(',');
+  // Optional extra: older teacher pages ignore it and still read the scores.
+  if (s.review && Object.keys(s.review).length) packed.d = s.review;
   if (s.capstone) {
     const c = s.capstone;
     packed.c = { b: c.brief, n: c.name, w: c.why, h: c.bars, p: c.pitch, k: c.punchy ? 1 : 0 };
@@ -108,7 +113,15 @@ export async function decodeSubmission(code: string): Promise<Submission | null>
       };
     }
     const assigned = typeof d.x === 'string' ? (d.x.split(',').filter((id: string) => VALID_IDS.has(id)) as StationId[]) : [...ALL_IDS];
-    return { name: d.n, startedAt: d.a * 1000, submittedAt: d.t * 1000, results, capstone, assigned: assigned.length ? assigned : [...ALL_IDS] };
+    return {
+      name: d.n,
+      startedAt: d.a * 1000,
+      submittedAt: d.t * 1000,
+      results,
+      capstone,
+      assigned: assigned.length ? assigned : [...ALL_IDS],
+      review: cleanReview(d.d),
+    };
   } catch {
     return null;
   }

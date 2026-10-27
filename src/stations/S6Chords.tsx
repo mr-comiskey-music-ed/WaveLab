@@ -17,7 +17,7 @@ interface Stack {
   ratio: number[];
 }
 
-const INTERVALS: Stack[] = [
+export const INTERVALS: Stack[] = [
   { id: 'P8', name: 'Octave', steps: [0, 12], ratio: [1, 2] },
   { id: 'P5', name: 'Perfect fifth', steps: [0, 7], ratio: [2, 3] },
   { id: 'P4', name: 'Perfect fourth', steps: [0, 5], ratio: [3, 4] },
@@ -26,7 +26,7 @@ const INTERVALS: Stack[] = [
   { id: 'M2', name: 'Major second', steps: [0, 2], ratio: [8, 9] },
 ];
 /** Every step from 0 to 12 in pure tuning (for the slider rounds). */
-const ALL_STEPS: Stack[] = [
+export const ALL_STEPS: Stack[] = [
   { id: 's0', name: 'Same note', steps: [0, 0], ratio: [1, 1] },
   { id: 's1', name: 'Minor second', steps: [0, 1], ratio: [15, 16] },
   { id: 's2', name: 'Major second', steps: [0, 2], ratio: [8, 9] },

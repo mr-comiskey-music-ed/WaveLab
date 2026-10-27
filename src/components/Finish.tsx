@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Capstone, Results, StationId, STATIONS } from '../lib/stations';
 import { capstoneComplete } from '../lib/capstone';
 import { encodeSubmission } from '../lib/codec';
+import { collectReview } from '../lib/review';
 import { copyText } from '../lib/copyText';
 
 interface Props {
@@ -24,13 +25,15 @@ export function Finish({ results, capstone, startedAt, assigned, onGoTo, onCopie
   const includeCapstone = assigned.includes('make') && (capstoneComplete(capstone) || capstone.why.trim() || capstone.name.trim());
 
   const make = async () => {
+    const mine: Results = Object.fromEntries(Object.entries(results).filter(([id]) => assigned.includes(id as StationId)));
     const c = await encodeSubmission({
       name,
       startedAt,
       submittedAt: Date.now(),
-      results: Object.fromEntries(Object.entries(results).filter(([id]) => assigned.includes(id as StationId))),
+      results: mine,
       capstone: includeCapstone ? capstone : undefined,
       assigned,
+      review: collectReview(mine, assigned),
     });
     setCode(c);
     setCopied(null);

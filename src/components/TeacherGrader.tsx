@@ -3,6 +3,8 @@ import { decodeSubmission, LOOKS_LIKE_CODE, Submission } from '../lib/codec';
 import { CAPSTONE_BRIEFS, CAPSTONE_PITCHES, overallScore, stationScore, StationId, STATIONS } from '../lib/stations';
 import { capstoneAmps, capstoneComplete, playCapstoneNote, riffRange, startRiff } from '../lib/capstone';
 import { copyText } from '../lib/copyText';
+import { ClassQuestions } from './ClassQuestions';
+import { StudentReview } from './StudentReview';
 import { HarmonicBars } from './HarmonicBars';
 import { Piano } from './Piano';
 import { LoopButton, PlayButton } from './ui';
@@ -185,6 +187,12 @@ export function TeacherGrader({ onBack }: { onBack: () => void }) {
   };
   const scoreFor = (e: Entry, id: StationId) => (e.sub.assigned.includes(id) ? stationScore(e.sub.results[id]) ?? 0 : null);
   const sel = entries?.find((e) => e.id === open);
+  const selIndex = entries && sel ? entries.indexOf(sel) : -1;
+  const detailRef = useRef<HTMLElement>(null);
+  // Bring a student's work into view when they're picked (the table can be long).
+  useEffect(() => {
+    if (open !== null) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [open]);
 
   return (
     <div className="teacher">
@@ -272,33 +280,38 @@ export function TeacherGrader({ onBack }: { onBack: () => void }) {
               </tfoot>
             </table>
           </div>
-          <p className="muted small">“–” means that section wasn’t assigned. Click a student to see their rounds and hear their sound.</p>
+          <p className="muted small">“–” means that section wasn’t assigned. Click a student to see every question, what they answered, and to hear their work.</p>
         </section>
       )}
 
       {sel && (
-        <section className="panel">
-          <h3>{sel.sub.name}</h3>
+        <section className="panel" ref={detailRef}>
+          <div className="rv-top">
+            <h3>{sel.sub.name}</h3>
+            {entries && entries.length > 1 && (
+              <div className="rv-nav">
+                <button className="btn quiet small" disabled={selIndex <= 0} onClick={() => setOpen(entries[selIndex - 1].id)}>
+                  ← Previous
+                </button>
+                <span className="muted small">
+                  {selIndex + 1} of {entries.length}
+                </span>
+                <button className="btn quiet small" disabled={selIndex >= entries.length - 1} onClick={() => setOpen(entries[selIndex + 1].id)}>
+                  Next →
+                </button>
+              </div>
+            )}
+          </div>
           <p className="muted">
             Turned in {fmtDate(sel.sub.submittedAt)}
             {fmtMinutes(sel.sub.startedAt, sel.sub.submittedAt) && `, ${fmtMinutes(sel.sub.startedAt, sel.sub.submittedAt)} after starting`}
           </p>
-          <table className="tally">
-            <tbody>
-              {AUTO.filter((s) => sel.sub.assigned.includes(s.id)).map((s) => {
-                const r = sel.sub.results[s.id];
-                return (
-                  <tr key={s.id}>
-                    <th scope="row">{s.title}</th>
-                    <td>{r ? r.rounds.join(', ') : <span className="muted">not done</span>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <StudentReview key={sel.id} sub={sel.sub} />
           {sel.sub.assigned.includes('make') && (sel.sub.capstone ? <CapstonePlayer key={sel.id} sub={sel.sub} /> : <p className="muted">No sound made yet.</p>)}
         </section>
       )}
+
+      {entries && entries.length > 0 && <ClassQuestions subs={entries.map((e) => e.sub)} />}
     </div>
   );
 }

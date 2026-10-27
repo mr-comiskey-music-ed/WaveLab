@@ -28,6 +28,17 @@ Open **Teacher tools** (`?teacher`, linked at the bottom) to make an assignment 
 (`?s=read,harm`), and to grade: paste a whole column of codes and download a CSV. Students click **Get my code**
 and paste the code into Google Classroom. Nothing is sent anywhere.
 
+Click a student in the grader to see their whole picture, not just the numbers: every round with the question
+as they saw it, what they answered, the right answer and (for common slips) a guess at what went wrong.
+Rounds below full credit open automatically. The by-ear matching rounds in Additive show their faders next to the
+mystery recipe (with which harmonics were off) and let you play both sounds; the Phase rounds show where they left
+each control and let you hear their setting next to the solved one. **Previous / Next** steps through the class.
+Below the table, **Question by question** shows what share of the class got each kind of question right.
+
+Codes now carry each student's answers (about 1,000 characters instead of about 200). Codes made before this
+only have scores, so they show the general question for each round plus the score; a student can open the
+assignment on their own Chromebook and make a new code to include their answers.
+
 ## Development
 
 ```
