@@ -33,11 +33,11 @@ export const PHASE_TITLES: Record<PhaseKind, string> = {
   train: 'How do noise-cancelling headphones work?',
 };
 
-/** Overhead placement: under 4 cm apart is right, 4 to 8 cm is close, anything farther is wrong. */
+/** Overhead placement: under 8 cm apart is right, 8 to 16 cm is close, anything farther is wrong. */
 export function overheadScore(cmApart: number) {
-  if (cmApart < 4) return 100;
-  if (cmApart < 8) return Math.round(90 - (cmApart - 4) * 2.5); // 90 down to 80: "Close"
-  return Math.round(60 - Math.min(10, (cmApart - 8) * 1.25)); // 60 down to 50: wrong
+  if (cmApart < 8) return 100;
+  if (cmApart < 16) return Math.round(90 - (cmApart - 8) * 1.25); // 90 down to 80: "Close"
+  return Math.round(60 - Math.min(10, (cmApart - 16) * 1.25)); // 60 down to 50: wrong
 }
 
 /** Everything a student can adjust in the phase rounds, plus the hidden answers the rounds are built around. */
@@ -101,7 +101,8 @@ export function phaseQuality(kind: PhaseKind, s: PhaseSetup) {
     case 'overhead':
       return (overheadScore(overheadGapOf(s)) - 50) / 50;
     case 'train':
-      return s.busFlip ? 1 - Math.abs(s.busDelay - s.busTarget) / 1.2 : 0;
+      // within 0.3 ms counts as matched (the drawing can't show less), then it falls off to nothing at 1.2 ms away
+      return s.busFlip ? 1 - Math.max(0, Math.abs(s.busDelay - s.busTarget) - 0.3) / 0.9 : 0;
   }
 }
 

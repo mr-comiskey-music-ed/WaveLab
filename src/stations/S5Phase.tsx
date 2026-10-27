@@ -21,17 +21,17 @@ type Round =
 /** The headphone electronics have a built-in delay (the target). The slider starts well away from it. */
 function busRound(): Round {
   const targetMs = Math.round(rand(1.6, 4.2) * 20) / 20;
-  // start a bit off, but not far: between 0.6 and 1.2 ms away, on a random side
-  const away = Math.round(rand(0.6, 1.2) * 20) / 20;
+  // start a bit off, but not far: between 0.9 and 1.6 ms away, on a random side
+  const away = Math.round(rand(0.9, 1.6) * 20) / 20;
   const startMs = Math.round((targetMs + (Math.random() < 0.5 || targetMs - away < 0.2 ? away : -away)) * 20) / 20;
   return { kind: 'train', startMs, targetMs };
 }
 
 function makeRounds(): Round[] {
   return [
-    busRound(), // most students ride a bus, and it's the easiest to set up, so it goes first
+    { kind: 'snare' }, // just the polarity button, so it goes first
+    busRound(), // then the polarity button again, plus a timing to match
     { kind: 'bass', base: rand(3.5, 6) },
-    { kind: 'snare' },
     { kind: 'overhead', leftX: Math.round(rand(45, 85)), startX: Math.round(rand(220, 290)) },
   ];
 }
@@ -150,7 +150,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
       snare: flippedSnare
         ? 'Exactly. The two mics face opposite directions, so one hears a push while the other hears a pull. Flipping the bottom mic’s polarity makes them push together, and the snare gets its body back.'
         : 'The bottom mic needed its polarity flipped. Because the mics face opposite directions, one hears a push while the other hears a pull. The Ø button turns that around so they add up.',
-      overhead: `When both overheads are the same distance from the snare, its sound reaches them at the same moment and they stay in phase. Yours ended up ${apart.toFixed(1)} cm different. Within 4 cm counts as in phase, and 4 to 8 cm is close. Engineers often check this with a tape measure or a mic cable.`,
+      overhead: `When both overheads are the same distance from the snare, its sound reaches them at the same moment and they stay in phase. Yours ended up ${apart.toFixed(1)} cm different. Within 8 cm counts as in phase, and 8 to 16 cm is close. Engineers often check this with a tape measure or a mic cable.`,
       train: flippedBus
         ? 'The headphones play the bus’s exact opposite, and the closer their timing, the more the deep rumble cancels. That’s phase cancellation used on purpose. The hiss and rattle still come through: they’re high and constantly changing, too fast for the headphones to copy and flip in time. Noise cancelling works best on low, steady sounds like engines.'
         : 'The headphones also needed their polarity flipped. Without the Ø flip, they add a second copy of the rumble instead of cancelling it. Flip it, then fine-tune the timing, and the engine hum drops away.',
@@ -274,7 +274,7 @@ export function S5Phase({ info, done, onComplete, onNext }: StationProps) {
             <>
               <p className="question">
                 You’re riding a bus with noise-cancelling headphones. A tiny mic on the outside hears the engine’s rumble, and the headphones play it back to cancel it. Two things have to be
-                right: the copy must be flipped (Ø), and the electronics have a little built-in delay that has to be matched. Flip the polarity, then slide the delay until the rumble is as quiet as you can get it.
+                right: the copy must be flipped (Ø), and the electronics have a little built-in delay that has to be matched. <strong>Start with the Ø button below</strong>, because without the flip the headphones add a second rumble instead of cancelling it. Then slide the delay until the rumble is as quiet as you can get it.
               </p>
               <HeadphoneScene />
               <WavePlot

@@ -214,7 +214,7 @@ const SLOT_TITLES: Partial<Record<StationId, string[]>> = {
     'Which harmonics does the waveform have?',
   ],
   add: ['Add two waves at one moment', 'Pick the combined wave', 'Match 3 harmonics by ear', 'Match 4 harmonics by ear', 'Match 5 harmonics by ear (start of a real waveform)'],
-  phase: [PHASE_TITLES.train, PHASE_TITLES.bass, PHASE_TITLES.snare, PHASE_TITLES.overhead],
+  phase: [PHASE_TITLES.snare, PHASE_TITLES.train, PHASE_TITLES.bass, PHASE_TITLES.overhead], // newest order; see roundTitle
   chord: ['Find the interval by clicking through them', 'Build the interval by sliding the upper note', 'Find the interval by clicking through them', 'Build the interval by sliding the upper note'],
 };
 
@@ -224,5 +224,7 @@ export const titlesFor = (id: StationId) => SLOT_TITLES[id] ?? [];
 /** The name of round `i` of a station. Phase rounds follow the student's own order when their code says what it was. */
 export function roundTitle(id: StationId, i: number, r?: Rec | null) {
   if (id === 'phase' && r && r.k in PHASE_TITLES) return PHASE_TITLES[r.k as PhaseKind];
+  // The phase rounds were reordered, so a code without answers can't say which round sat where.
+  if (id === 'phase') return `Phase round ${i + 1}`;
   return SLOT_TITLES[id]?.[i] ?? `Round ${i + 1}`;
 }

@@ -194,7 +194,7 @@ function PhaseCard({ rec }: { rec: Extract<Rec, { k: PhaseKind }> }) {
       break;
     case 'overhead': {
       const gap = overheadGapOf(setup);
-      facts = `The two overheads ended up ${gap.toFixed(1)} cm different in distance from the snare. (Under 4 cm counts as in phase, 4 to 8 cm is close.)`;
+      facts = `The two overheads ended up ${gap.toFixed(1)} cm different in distance from the snare. (Under 8 cm counts as in phase, 8 to 16 cm is close.)`;
       visual = <KitView leftX={rec.lx} rightX={rec.rx} />;
       break;
     }
