@@ -36,7 +36,7 @@ const shapeOf = (amps: number[]) => {
   return (t: number) => (0.95 * harmonicValue(amps, t)) / p;
 };
 
-/** One round. Rounds that didn't earn full credit start open; the rest are one line you can open. */
+/** One round, as a one-line row (score and question) that opens to show their answer. */
 function Round({ id, index, score, rec }: { id: StationId; index: number; score: number; rec: Rec | null }) {
   const title = roundTitle(id, index, rec);
   const tone = roundTone(score);
@@ -56,7 +56,7 @@ function Round({ id, index, score, rec }: { id: StationId; index: number; score:
 
   return (
     <li className={`rv-round ${tone}`}>
-      <details open={score < FULL}>
+      <details>
         <summary>
           <span className={`rv-score ${tone}`}>{score}</span>
           <span className="rv-title">{title}</span>
@@ -245,20 +245,10 @@ function Dots({ scores }: { scores: number[] }) {
   );
 }
 
-/** A student's full picture: every question, what they answered, and what to look at first. */
+/** A student's full picture: every question and what they answered. */
 export function StudentReview({ sub }: { sub: Submission }) {
   const stations = AUTO.filter((s) => sub.assigned.includes(s.id));
   const hasDetail = !!sub.review && Object.keys(sub.review).length > 0;
-
-  // Everything that didn't earn full credit, for a quick "where to look" list.
-  const lookAt: { station: string; round: number; title: string; score: number }[] = [];
-  for (const s of stations) {
-    const r = sub.results[s.id];
-    r?.rounds.forEach((score, i) => {
-      if (score < FULL) lookAt.push({ station: s.title, round: i + 1, title: roundTitle(s.id, i, sub.review?.[s.id]?.[i]), score });
-    });
-  }
-  const notDone = stations.filter((s) => !sub.results[s.id]);
 
   return (
     <div className="rv">
@@ -267,26 +257,6 @@ export function StudentReview({ sub }: { sub: Submission }) {
           This code only has scores, so the questions below are the general ones each round asks, not this student’s exact numbers or answers. To see their answers, have them open the assignment on their Chromebook, press “Get my code” again and turn in the new code.
         </p>
       )}
-
-      <div className="rv-look">
-        <h4>Where to look</h4>
-        {lookAt.length === 0 && notDone.length === 0 ? (
-          <p className="good">Full credit on every round.</p>
-        ) : (
-          <ul>
-            {lookAt.map((x, i) => (
-              <li key={i}>
-                <span className={`rv-score ${roundTone(x.score)}`}>{x.score}</span> {x.station}, round {x.round}: {x.title}
-              </li>
-            ))}
-            {notDone.map((s) => (
-              <li key={s.id}>
-                <span className="rv-score miss">0</span> {s.title}: not done
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {stations.map((s) => {
         const r = sub.results[s.id];
