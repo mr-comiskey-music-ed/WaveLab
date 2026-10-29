@@ -8,7 +8,7 @@ with hands-on rounds on waveforms, harmonics and phase, and gives me
 something to grade. It is not meant to replace the essay.
 
 ## Hard rules
-- Never store student data of any kind, not even names. No backend.
+- Never store student data of any kind. No backend.
 - Students show work with a base64 code pasted into Google Classroom.
 - Must run well on Chromebooks and stay lightweight.
 - Repo: github.com/mr-comiskey-music-ed/WaveLab. Deployed on Vercel at
@@ -32,11 +32,6 @@ something to grade. It is not meant to replace the essay.
   with the target, with playback.
 - A simple per-question class percentage is shown (merged 2026-10-27).
 - Percentages, not stars.
-
-## Design
-- I disliked the original app's look and it was my weakest app, so
-  keep the aesthetic clean and distinct from the Pudding's. Not vibe-
-  coded looking.
 
 ## Working style
 Start from the teaching goal, then shape features around it. Suggest
